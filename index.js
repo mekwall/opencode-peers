@@ -282,8 +282,10 @@ export function createPeers(ctx, options = {}) {
         (s) => `${aliasFor(s.id)} ${ago(s.time?.updated)} ${clip(s.title, 40)}`
       );
       const foreign = all ? [] : detectForeignSafe();
-      if (lines.length === 0 && foreign.length === 0) return "none";
-      return [...lines, ...foreign.map((a) => `${a.name}#${a.pid} (no dm)`)].join("\n");
+      if (lines.length === 0 && foreign.length === 0) return { content: "none" };
+      return {
+        content: [...lines, ...foreign.map((a) => `${a.name}#${a.pid} (no dm)`)].join("\n"),
+      };
     },
 
     send: async (input = {}, context = {}) => {
@@ -296,7 +298,7 @@ export function createPeers(ctx, options = {}) {
         text: `[peer ${aliasFor(context.sessionID)}] ${text}`,
         delivery: input.steer === true ? "steer" : "queue",
       });
-      return `sent ${aliasFor(target.id)}`;
+      return { content: `sent ${aliasFor(target.id)}` };
     },
 
     room: async (input = {}, context = {}) => {
@@ -318,14 +320,14 @@ export function createPeers(ctx, options = {}) {
             // peer vanished; the room log still has the message
           }
         }
-        return sent.length ? `posted; sent ${sent.join(",")}` : "posted";
+        return { content: sent.length ? `posted; sent ${sent.join(",")}` : "posted" };
       }
       const seen = lastSeen.get(context.sessionID) ?? 0;
       const limit = Math.min(Number(input.limit) || 20, ROOM_TAIL);
       const messages = (await readRoom()).filter((m) => m.t > seen).slice(-limit);
-      if (messages.length === 0) return "none";
+      if (messages.length === 0) return { content: "none" };
       lastSeen.set(context.sessionID, messages[messages.length - 1].t);
-      return messages.map((m) => `${m.i}> ${m.x}`).join("\n");
+      return { content: messages.map((m) => `${m.i}> ${m.x}`).join("\n") };
     },
   };
 

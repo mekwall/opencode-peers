@@ -75,7 +75,7 @@ test("foreign detection degrades quietly", () => {
 
 test("list is compact: alias, age, clipped title", async () => {
   const ctx = await fakeContext();
-  const out = await peersOf(ctx).list({}, { sessionID: "ses_aaaa0000" });
+  const out = (await peersOf(ctx).list({}, { sessionID: "ses_aaaa0000" })).content;
 
   assert.ok(!out.includes("ses_"));
   assert.match(out, /^bbbb now Generator agent$/m);
@@ -87,16 +87,18 @@ test("list is compact: alias, age, clipped title", async () => {
 test("list reports none and includes foreign agents", async () => {
   const ctx = await fakeContext({ data: [SESSIONS[0]] });
   const peers = peersOf(ctx, { detectForeign: () => [{ name: "codex", pid: 42 }] });
-  assert.match(await peers.list({}, { sessionID: "ses_aaaa0000" }), /codex#42 \(no dm\)/);
+  assert.match((await peers.list({}, { sessionID: "ses_aaaa0000" })).content, /codex#42 \(no dm\)/);
 });
 
 test("send resolves an alias and stays terse", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);
-  const out = await peers.send(
-    { to: "bbbb", msg: "parser moved to core/p.ts" },
-    { sessionID: "ses_aaaa0000" }
-  );
+  const out = (
+    await peers.send(
+      { to: "bbbb", msg: "parser moved to core/p.ts" },
+      { sessionID: "ses_aaaa0000" }
+    )
+  ).content;
 
   assert.equal(out, "sent bbbb");
   assert.deepEqual(ctx.calls.prompt[0], {
@@ -126,7 +128,8 @@ test("send rejects self, unknown aliases and empty text", async () => {
 test("room writes one-char-key lines and notifies peers", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);
-  const out = await peers.room({ msg: "auth refactor started" }, { sessionID: "ses_aaaa0000" });
+  const out = (await peers.room({ msg: "auth refactor started" }, { sessionID: "ses_aaaa0000" }))
+    .content;
 
   assert.equal(out, "posted; sent bbbb,cccc");
   const raw = (await readFile(peers.roomPath(), "utf8")).trim();
@@ -142,9 +145,9 @@ test("room read returns unread then none", async () => {
   await peers.room({ msg: "one" }, { sessionID: "ses_bbbb1111" });
   await peers.room({ msg: "two" }, { sessionID: "ses_bbbb1111" });
 
-  const first = await peers.room({}, { sessionID: "ses_aaaa0000" });
+  const first = (await peers.room({}, { sessionID: "ses_aaaa0000" })).content;
   assert.equal(first, "bbbb> one\nbbbb> two");
-  assert.equal(await peers.room({}, { sessionID: "ses_aaaa0000" }), "none");
+  assert.equal((await peers.room({}, { sessionID: "ses_aaaa0000" })).content, "none");
 });
 
 test("presence note is terse and only appears when something is happening", async () => {
