@@ -286,7 +286,7 @@ test("setup registers a namespace, four tools, and a context hook", async () => 
   assert.equal(ctx.calls.namespace, undefined, "tools are named explicitly, not namespaced");
   assert.deepEqual(
     ctx.calls.tools.map((tool) => tool.name),
-    ["peers_list", "peers_send", "peers_room_send", "peers_room_read"]
+    ["peers_list", "peers_send", "peers_status", "peers_room_send", "peers_room_read"]
   );
   for (const tool of ctx.calls.tools) {
     assert.equal(tool.input.type, "object");

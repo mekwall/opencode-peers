@@ -518,6 +518,14 @@ const plugin = {
         execute: (input, context) => tools.send(input, context),
       });
       editor.add({
+        name: "peers_status",
+        description:
+          "Diagnostic: return the presence note this session would receive right now (peers, foreign agents, " +
+          "unread room messages). Use it to check who else is active here.",
+        input: { type: "object", properties: {}, additionalProperties: false },
+        execute: (_input, context) => tools.presence({}, context),
+      });
+      editor.add({
         name: "peers_room_send",
         description:
           "Post to the shared room for this project. The message is appended to the room log and " +
@@ -564,8 +572,9 @@ const plugin = {
         if (!note || lastInjected.get(event.sessionID) === note) return;
         lastInjected.set(event.sessionID, note);
         event.system.push({ type: "text", text: note });
-      } catch {
-        // Peer discovery must never break a model call.
+      } catch (error) {
+        // Peer discovery must never break a model call, but it must be diagnosable.
+        console.error("peers: context hook failed", error);
       }
     });
     return () => registration?.dispose?.();
