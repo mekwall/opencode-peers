@@ -19,21 +19,25 @@ Three things, in order of importance:
 
 ## Install
 
-Local plugin, no build step, no runtime dependencies:
-
-```sh
-opencode plugin add /home/mekwall/repos/github/mekwall/opencode-peers
-```
-
-If `plugin add` rejects a local path, add it to `plugins` in `opencode.json(c)` directly:
+Published repo: <https://github.com/mekwall/opencode-peers>. Pin a tag so every machine fetches the same code:
 
 ```jsonc
 {
-  "plugins": ["/home/mekwall/repos/github/mekwall/opencode-peers"]
+  "plugin": ["github:mekwall/opencode-peers#v0.1.0"]
 }
 ```
 
-Or copy `index.js` into `~/.config/opencode/plugins/peers.js` if you prefer a single file.
+For local development, point at the checkout instead:
+
+```jsonc
+{
+  "plugin": ["/home/mekwall/repos/github/mekwall/opencode-peers"]
+}
+```
+
+OpenCode installs Git plugins with Bun and caches them, so bump the tag (and cut a release) to roll out a fix. Copying `index.js` into `~/.config/opencode/plugins/peers.js` also works if you prefer a single file.
+
+**Do not use `opencode plugin add` for this.** On OpenCode 2.1.4 it rewrites the whole global config file — it merged the machine-local `opencode.home.json` overrides into `opencode.json` (changed the model, injected a local proxy provider, dropped existing plugins) and still did not add the requested plugin. Edit the `plugin` array by hand.
 
 Note: `opencode plugin list` only reports npm packages and files under the plugins directory, so a config-path plugin loads correctly but does not appear in that listing.
 
@@ -69,6 +73,13 @@ One JSON object per line: `{ id, ts, from, fromTitle, text }`. Plain JSONL on pu
 - **Only recent activity counts.** Presence ignores sessions idle for more than 30 minutes (`activeWithinMs`) and the current session's own children, so a long-dead conversation in the same repo does not trigger a false "another agent is working here". `peers_list` still shows everything, with ages.
 - **Non-OpenCode agents are detected too.** On Linux, `/proc` is scanned for known agent binaries (codex, claude, cursor-agent, aider, gemini, omp, pi) whose cwd, argv or open file descriptors touch this repo. They appear in the note as agents that cannot receive DMs, so the advice is "ask the user", not "message them".
 - **No auto-wake.** Nothing starts a turn in an idle session; messages wait for the peer's next prompt. Auto-wake needs a wake channel the harness does not expose.
+
+## Platforms
+
+- **Linux:** foreign agents found via `/proc` (cwd, argv, open file descriptors).
+- **macOS:** same detection via `ps` + `lsof` (cwd and argv only; no fd scan). State lives in `~/Library/Application Support/opencode-peers` unless `XDG_STATE_HOME` is set.
+- **Windows:** OpenCode sessions and the room work; foreign-agent detection returns nothing.
+- Core features (presence for OpenCode sessions, DMs, room) are platform-independent.
 
 ## Limits
 
