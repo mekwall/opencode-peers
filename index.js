@@ -32,12 +32,17 @@ function ago(ts) {
   return h < 24 ? `${h}h` : `${Math.round(h / 24)}d`;
 }
 
-// Session IDs look like ses_e807085a6ffe.... The first 4 hex chars are unique enough
-// inside one project, and turning 30 chars into 4 is the single biggest token saving
-// in every roster, room line and DM target.
+// Session IDs look like ses_e807085a6ffe<random>. Prefixes collide for sessions created
+// in the same batch, so the alias is a 4-char base36 hash of the full id: short enough
+// to be cheap in every roster, room line and DM target, distinct enough locally.
 export function aliasFor(sessionID) {
-  const raw = String(sessionID ?? "").replace(/^ses_/, "");
-  return raw.slice(0, 4) || "????";
+  const raw = String(sessionID ?? "");
+  let hash = 2166136261;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36).padStart(4, "0").slice(-4);
 }
 
 function clip(value, max) {
