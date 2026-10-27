@@ -383,14 +383,10 @@ const plugin = {
     await ctx.tool.transform((editor) => {
       editor.add({
         name: "peers_list",
-        description:
-          "Sessions in this repo as `alias age title`; `foreign#pid` = non-OpenCode agent.",
+        description: "Peers: `alias age title`; foreign#pid = non-OpenCode.",
         input: {
           type: "object",
-          properties: {
-            all: { type: "boolean", description: "every project" },
-            limit: { type: "number" },
-          },
+          properties: { all: { type: "boolean" } },
           additionalProperties: false,
         },
         execute: (input, context) => peers.list(input, context),
@@ -415,7 +411,7 @@ const plugin = {
         description: "Room: msg=post+notify, no msg=read unread.",
         input: {
           type: "object",
-          properties: { msg: { type: "string" }, limit: { type: "number" } },
+          properties: { msg: { type: "string" } },
           additionalProperties: false,
         },
         execute: (input, context) => peers.room(input, context),
