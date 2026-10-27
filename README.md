@@ -11,13 +11,28 @@ Three things, in order of importance:
 
 ## Tools
 
-| Tool | Purpose |
+Three tools, one-line descriptions, compact output. Alias = 4-char hash of the session id.
+
+| Tool | Args | Returns |
+|---|---|---|
+| `peers_list` | `all?`, `limit?` | `alias age title` lines; `name#pid (no dm)` for non-OpenCode agents |
+| `peers_send` | `to`, `msg`, `steer?` | `sent <alias>`; delivers `[peer <alias>] <msg>` |
+| `peers_room` | `msg?`, `limit?` | posting returns `posted; sent <aliases>`; reading returns `alias> msg` lines or `none` |
+
+Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>"}`. Agents are told to write terse messages — the protocol is deliberately unfriendly to human readers, because the only consumers are models.
+
+## Token budget
+
+Measured on the current build:
+
+| Surface | Size |
 |---|---|
-| `peers_list` | other sessions here (`all: true` spans projects), with age and title |
-| `peers_status` | diagnostic: exactly what presence note this session would receive now |
-| `peers_send` | DM one session by `sessionID` or unique title substring; `delivery: queue` (default) or `steer` |
-| `peers_room_send` | post to the project room and deliver to every peer session |
-| `peers_room_read` | recent room messages; `unread: true` returns only what you have not seen |
+| `<peers>` bootstrap, once per session | ~38 tokens |
+| three tool schemas, every request | ~177 tokens |
+| **always-on total** | **~215 tokens** |
+| presence note with two peers | ~25 tokens |
+
+Tests assert the bootstrap stays under 200 chars, each tool description under 100 chars, rosters under 130 chars, and the always-on surface under 250 tokens.
 
 ## Install
 
