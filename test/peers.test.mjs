@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import plugin, { createPeers, roomFile, stateRoot } from "../index.js";
+import plugin, { createPeers, detectForeignAgents, roomFile, stateRoot } from "../index.js";
 
 const SESSIONS = [
   { id: "ses_current", title: "Current work", time: { created: 1, updated: Date.now() } },
@@ -57,6 +57,22 @@ test("state lives outside the repo", async () => {
   const ctx = await fakeContext();
   assert.equal(stateRoot(ctx.env), join(ctx.env.HOME, ".local", "share", "opencode-peers"));
   assert.match(roomFile(ctx, ctx.env), /opencode-peers\/rooms\/proj_a\.jsonl$/);
+});
+
+test("state root follows platform conventions", async () => {
+  const env = { HOME: "/Users/someone" };
+  assert.equal(roomFile({ location: { project: { id: "p" } } }, env).startsWith(join(env.HOME, ".local", "share")), true);
+  assert.equal(
+    stateRoot(env, "darwin"),
+    join(env.HOME, "Library", "Application Support", "opencode-peers")
+  );
+  assert.equal(stateRoot({ ...env, XDG_STATE_HOME: "/custom" }, "darwin"), join("/custom", "opencode-peers"));
+});
+
+test("foreign agent detection degrades quietly on other platforms", async () => {
+  assert.deepEqual(detectForeignAgents("/repo/a", {}, "win32"), []);
+  assert.deepEqual(detectForeignAgents(undefined, {}, "linux"), []);
+  assert.deepEqual(detectForeignAgents("/definitely/not/a/repo", {}, "linux"), []);
 });
 
 test("list hides the calling session and scopes to the location", async () => {

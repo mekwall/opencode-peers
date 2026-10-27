@@ -19,6 +19,7 @@
 
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -49,9 +50,11 @@ function agoLabel(ts) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-export function stateRoot(env = process.env) {
-  const base = env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "share");
-  return join(base, "opencode-peers");
+export function stateRoot(env = process.env, platform = process.platform) {
+  if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "opencode-peers");
+  const home = env.HOME || homedir();
+  if (platform === "darwin") return join(home, "Library", "Application Support", "opencode-peers");
+  return join(home, ".local", "share", "opencode-peers");
 }
 
 // Non-OpenCode agents (Codex, Claude Code, Cursor, ...) are not sessions we can list,
@@ -67,30 +70,19 @@ const FOREIGN_AGENTS = [
   "pi",
 ];
 
-export function detectForeignAgents(directory, env = process.env) {
-  if (!directory || process.platform !== "linux") return [];
+function agentNameFor(text) {
+  const base = String(text ?? "").split("/").pop() ?? "";
+  return FOREIGN_AGENTS.find((agent) => base === agent || base === `${agent}.js`);
+}
+
+function linuxAgentProcesses() {
+  const processes = [];
   let entries;
   try {
     entries = readdirSync("/proc");
   } catch {
-    return [];
+    return processes;
   }
-  const found = new Map();
-  const touchesRepo = (pid) => {
-    try {
-      for (const fd of readdirSync(`/proc/${pid}/fd`).slice(0, 64)) {
-        try {
-          const target = readlinkSync(`/proc/${pid}/fd/${fd}`);
-          if (target === directory || target.startsWith(`${directory}/`)) return true;
-        } catch {
-          // fd closed between readdir and readlink
-        }
-      }
-    } catch {
-      // process gone or not ours
-    }
-    return false;
-  };
   for (const entry of entries) {
     if (!/^\d+$/.test(entry)) continue;
     let cmdline;
@@ -100,25 +92,97 @@ export function detectForeignAgents(directory, env = process.env) {
       continue;
     }
     const argv = cmdline.split("\0").filter(Boolean);
-    if (argv.length === 0) continue;
-    const name = FOREIGN_AGENTS.find((agent) =>
-      argv.some((arg) => arg.split("/").pop() === agent || arg.split("/").pop() === `${agent}.js`)
-    );
+    const name = argv.length > 0 ? agentNameFor(argv[0]) : undefined;
     if (!name) continue;
     let cwd;
     try {
       cwd = readlinkSync(`/proc/${entry}/cwd`);
     } catch {
-      continue;
+      cwd = undefined;
     }
+    processes.push({ pid: Number(entry), name, cwd, argv, openFiles: () => linuxOpenFiles(entry) });
+  }
+  return processes;
+}
+
+function linuxOpenFiles(pid) {
+  const paths = [];
+  try {
+    for (const fd of readdirSync(`/proc/${pid}/fd`).slice(0, 64)) {
+      try {
+        const target = readlinkSync(`/proc/${pid}/fd/${fd}`);
+        if (!target.startsWith("/dev/") && !target.startsWith("/tmp/")) paths.push(target);
+      } catch {
+        // fd closed between readdir and readlink
+      }
+    }
+  } catch {
+    // process gone or not ours
+  }
+  return paths;
+}
+
+function darwinAgentProcesses() {
+  const processes = [];
+  let listing;
+  try {
+    listing = execFileSync("ps", ["-axo", "pid=,comm="], {
+      encoding: "utf8",
+      timeout: 4000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+  } catch {
+    return processes;
+  }
+  for (const line of listing.split("\n")) {
+    const match = line.trim().match(/^(\d+)\s+(.+)$/);
+    if (!match) continue;
+    const name = agentNameFor(match[2]);
+    if (!name) continue;
+    const pid = Number(match[1]);
+    let argv = [];
+    try {
+      const command = execFileSync("ps", ["-p", String(pid), "-o", "command="], {
+        encoding: "utf8",
+        timeout: 2000,
+      }).trim();
+      argv = command.split(/\s+/);
+    } catch {
+      // process gone
+    }
+    let cwd;
+    try {
+      const lsof = execFileSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], {
+        encoding: "utf8",
+        timeout: 2000,
+      });
+      cwd = lsof.split("\n").find((row) => row.startsWith("n/"))?.slice(1);
+    } catch {
+      cwd = undefined;
+    }
+    processes.push({ pid, name, cwd, argv, openFiles: () => [] });
+  }
+  return processes;
+}
+
+function processSnapshot(platform = process.platform) {
+  if (platform === "linux") return linuxAgentProcesses();
+  if (platform === "darwin") return darwinAgentProcesses();
+  return [];
+}
+
+export function detectForeignAgents(directory, env = process.env, platform = process.platform) {
+  if (!directory) return [];
+  const found = new Map();
+  for (const candidate of processSnapshot(platform)) {
+    const { pid, name, cwd, argv } = candidate;
     const inRepo =
-      cwd === directory ||
-      cwd.startsWith(`${directory}/`) ||
+      (cwd && (cwd === directory || cwd.startsWith(`${directory}/`))) ||
       argv.some((arg) => arg === directory || arg.startsWith(`${directory}/`)) ||
-      touchesRepo(entry);
+      candidate.openFiles().some((file) => file === directory || file.startsWith(`${directory}/`));
     if (!inRepo) continue;
-    const key = `${name}:${cwd}`;
-    if (!found.has(key)) found.set(key, { name, pid: Number(entry), cwd });
+    const key = `${name}:${cwd ?? pid}`;
+    if (!found.has(key)) found.set(key, { name, pid, cwd });
   }
   return [...found.values()];
 }
