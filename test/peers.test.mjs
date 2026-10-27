@@ -175,6 +175,11 @@ test("unread room messages are folded into the presence note", async () => {
 
   const note = await peers.presenceNote(CUR);
   assert.match(note, new RegExp(`room: ${A1}>don't touch cli\\.ts`));
+  assert.equal(
+    text(await peers.room({}, { sessionID: CUR })),
+    `${A1}> don't touch cli.ts`,
+    "presence note must not consume unread messages"
+  );
 });
 
 test("setup registers three cheap tools and one hook", async () => {

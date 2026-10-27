@@ -356,7 +356,6 @@ export function createPeers(ctx, options = {}) {
       parts.push(
         `${peers.map((p) => `${aliasFor(p.id)}(${ago(p.time?.updated)})`).join(",")}; ask user before edits`
       );
-      lastSeen.set(`roster:${currentSessionID}`, now());
     }
     if (foreign.length > 0) {
       parts.push(`foreign:${foreign.map((a) => a.name).join(",")}; no dm, ask user`);
@@ -368,7 +367,7 @@ export function createPeers(ctx, options = {}) {
           .map((m) => `${m.i}>${clip(m.x, 120)}`)
           .join(" | ")}`
       );
-      lastSeen.set(currentSessionID, unread[unread.length - 1].t);
+      // Peek, do not consume: an explicit peers_room read must still return these.
     }
     return `<peers>${parts.join(". ")}</peers>`;
   }
