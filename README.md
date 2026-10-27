@@ -6,6 +6,7 @@ Three things, in order of importance:
 
 1. **Awareness.** Before every model call, if other sessions share this project, a short `<peers>` note is injected into the system prompt naming them and telling the agent to ask the user before touching work another agent may be editing. No agent should start rewriting files while a second agent is mid-feature in the same tree.
 2. **Direct messages.** `peers_send` types a message into another session, exactly like a user turn.
+   Every session also gets a ~90-token `<peers-tools>` block once, explaining the tools and the ask-first rule, so an agent that never sees a peer still knows the feature exists.
 3. **A shared room.** `peers_room_send` / `peers_room_read` over an append-only JSONL log per project, and unread room messages are folded into the next model call automatically.
 
 ## Tools
@@ -13,6 +14,7 @@ Three things, in order of importance:
 | Tool | Purpose |
 |---|---|
 | `peers_list` | other sessions here (`all: true` spans projects), with age and title |
+| `peers_status` | diagnostic: exactly what presence note this session would receive now |
 | `peers_send` | DM one session by `sessionID` or unique title substring; `delivery: queue` (default) or `steer` |
 | `peers_room_send` | post to the project room and deliver to every peer session |
 | `peers_room_read` | recent room messages; `unread: true` returns only what you have not seen |
@@ -35,7 +37,13 @@ For local development, point at the checkout instead:
 }
 ```
 
-OpenCode installs Git plugins with Bun and caches them, so bump the tag (and cut a release) to roll out a fix. Copying `index.js` into `~/.config/opencode/plugins/peers.js` also works if you prefer a single file.
+OpenCode installs Git plugins with Bun and caches them by spec. After changing the tag, clear the cache or the old build keeps loading:
+
+```sh
+rm -rf ~/.cache/opencode/npm/git-opencode-peers-*
+```
+
+Then start a new session (or `/reload`). Copying `index.js` into `~/.config/opencode/plugins/peers.js` also works if you prefer a single file.
 
 **Do not use `opencode plugin add` for this.** On OpenCode 2.1.4 it rewrites the whole global config file — it merged the machine-local `opencode.home.json` overrides into `opencode.json` (changed the model, injected a local proxy provider, dropped existing plugins) and still did not add the requested plugin. Edit the `plugin` array by hand.
 
