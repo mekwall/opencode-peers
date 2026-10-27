@@ -22,6 +22,7 @@ const ACTIVE_WITHIN_MS = 30 * 60_000;
 const PRESENCE_TTL_MS = 30_000;
 const MAX_LIMIT = 100;
 const ROOM_TAIL = 200;
+const MAX_ROOM_FANOUT = 12;
 
 function ago(ts) {
   if (!Number.isFinite(ts)) return "?";
@@ -218,7 +219,14 @@ export function createPeers(ctx, options = {}) {
       limit: MAX_LIMIT,
       ...(all ? {} : directory() ? { directory: directory() } : {}),
     });
-    return (page?.data ?? []).filter((s) => s.id !== currentSessionID);
+    // The server accepts `directory` but does not always honour it, so filter here.
+    const here = directory();
+    return (page?.data ?? []).filter((s) => {
+      if (s.id === currentSessionID) return false;
+      if (all || !here) return true;
+      const loc = s.location?.directory ?? s.location?.path ?? s.directory;
+      return !loc || loc === here;
+    });
   }
 
   async function roster(currentSessionID, { fresh = false, all = false } = {}) {
@@ -314,7 +322,10 @@ export function createPeers(ctx, options = {}) {
           x: clip(input.msg, 4000),
         };
         await writeRoom(message);
-        const peers = await roster(context.sessionID, { fresh: true });
+        const peers = active(
+          await roster(context.sessionID, { fresh: true }),
+          context.sessionID
+        ).slice(0, MAX_ROOM_FANOUT);
         const line = `[room ${message.i}] ${message.x}`;
         const sent = [];
         for (const peer of peers) {

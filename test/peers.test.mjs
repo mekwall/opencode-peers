@@ -95,6 +95,18 @@ test("list is compact: alias, age, clipped title", async () => {
   assert.ok(!out.includes("Current work"));
 });
 
+test("sessions from other directories are filtered out client-side", async () => {
+  const other = {
+    id: "ses_ffff9999",
+    title: "elsewhere",
+    location: { directory: "/repo/b" },
+    time: { updated: Date.now() },
+  };
+  const ctx = await fakeContext({ data: [...SESSIONS, other] });
+  const out = text(await peersOf(ctx).list({}, { sessionID: CUR }));
+  assert.ok(!out.includes("elsewhere"), "other project leaked into roster");
+});
+
 test("list includes foreign agents that cannot be messaged", async () => {
   const ctx = await fakeContext({ data: [SESSIONS[0]] });
   const peers = peersOf(ctx, { detectForeign: () => [{ name: "codex", pid: 42 }] });
