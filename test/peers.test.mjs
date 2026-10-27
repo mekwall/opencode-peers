@@ -51,7 +51,8 @@ async function fakeContext({ data = SESSIONS, withTools = false } = {}) {
   return ctx;
 }
 
-const peersOf = (ctx, overrides = {}) => createPeers(ctx, { env: ctx.env, detectForeign: () => [], ...overrides });
+const peersOf = (ctx, overrides = {}) =>
+  createPeers(ctx, { env: ctx.env, detectForeign: () => [], ...overrides });
 
 test("state lives outside the repo", async () => {
   const ctx = await fakeContext();
@@ -61,18 +62,26 @@ test("state lives outside the repo", async () => {
 
 test("state root follows platform conventions", async () => {
   const env = { HOME: "/Users/someone" };
-  assert.equal(roomFile({ location: { project: { id: "p" } } }, env).startsWith(join(env.HOME, ".local", "share")), true);
+  assert.equal(
+    roomFile({ location: { project: { id: "p" } } }, env).startsWith(
+      join(env.HOME, ".local", "share")
+    ),
+    true
+  );
   assert.equal(
     stateRoot(env, "darwin"),
     join(env.HOME, "Library", "Application Support", "opencode-peers")
   );
-  assert.equal(stateRoot({ ...env, XDG_STATE_HOME: "/custom" }, "darwin"), join("/custom", "opencode-peers"));
+  assert.equal(
+    stateRoot({ ...env, XDG_STATE_HOME: "/custom" }, "darwin"),
+    join("/custom", "opencode-peers")
+  );
 });
 
 test("foreign agent detection degrades quietly on other platforms", async () => {
-  assert.deepEqual(detectForeignAgents("/repo/a", {}, "win32"), []);
-  assert.deepEqual(detectForeignAgents(undefined, {}, "linux"), []);
-  assert.deepEqual(detectForeignAgents("/definitely/not/a/repo", {}, "linux"), []);
+  assert.deepEqual(detectForeignAgents("/repo/a", "win32"), []);
+  assert.deepEqual(detectForeignAgents(undefined, "linux"), []);
+  assert.deepEqual(detectForeignAgents("/definitely/not/a/repo", "linux"), []);
 });
 
 test("list hides the calling session and scopes to the location", async () => {
@@ -92,9 +101,16 @@ test("list can span every project", async () => {
 
 test("send resolves a unique title and queues by default", async () => {
   const ctx = await fakeContext();
-  const result = await peersOf(ctx).send({ text: "the API changed", title: "generator agent" }, { sessionID: "ses_current" });
+  const result = await peersOf(ctx).send(
+    { text: "the API changed", title: "generator agent" },
+    { sessionID: "ses_current" }
+  );
 
-  assert.deepEqual(ctx.calls.prompt[0], { sessionID: "ses_alpha", text: "the API changed", delivery: "queue" });
+  assert.deepEqual(ctx.calls.prompt[0], {
+    sessionID: "ses_alpha",
+    text: "the API changed",
+    delivery: "queue",
+  });
   assert.match(result.content, /delivery=queue/);
 });
 
@@ -106,28 +122,46 @@ test("send prefers an explicit session id without listing", async () => {
 
 test("send passes steer through", async () => {
   const ctx = await fakeContext();
-  await peersOf(ctx).send({ text: "stop", sessionID: "ses_alpha", delivery: "steer" }, { sessionID: "ses_current" });
+  await peersOf(ctx).send(
+    { text: "stop", sessionID: "ses_alpha", delivery: "steer" },
+    { sessionID: "ses_current" }
+  );
   assert.equal(ctx.calls.prompt[0].delivery, "steer");
 });
 
 test("ambiguous and unknown titles are rejected", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);
-  await assert.rejects(() => peers.send({ text: "hi", title: "Suno generator" }, { sessionID: "ses_current" }), /ambiguous/i);
-  await assert.rejects(() => peers.send({ text: "hi", title: "nope" }, { sessionID: "ses_current" }), /no session title matches/i);
+  await assert.rejects(
+    () => peers.send({ text: "hi", title: "Suno generator" }, { sessionID: "ses_current" }),
+    /ambiguous/i
+  );
+  await assert.rejects(
+    () => peers.send({ text: "hi", title: "nope" }, { sessionID: "ses_current" }),
+    /no session title matches/i
+  );
   assert.equal(ctx.calls.prompt.length, 0);
 });
 
 test("sending to yourself or with empty text is refused", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);
-  await assert.rejects(() => peers.send({ text: "hi", sessionID: "ses_current" }, { sessionID: "ses_current" }), /current session/i);
-  await assert.rejects(() => peers.send({ text: "   " }, { sessionID: "ses_current" }), /text is required/i);
+  await assert.rejects(
+    () => peers.send({ text: "hi", sessionID: "ses_current" }, { sessionID: "ses_current" }),
+    /current session/i
+  );
+  await assert.rejects(
+    () => peers.send({ text: "   " }, { sessionID: "ses_current" }),
+    /text is required/i
+  );
 });
 
 test("room send writes a log line and delivers to peers, not self", async () => {
   const ctx = await fakeContext();
-  const result = await peersOf(ctx).roomSend({ text: "migrating the parser", fromTitle: "generator" }, { sessionID: "ses_current" });
+  const result = await peersOf(ctx).roomSend(
+    { text: "migrating the parser", fromTitle: "generator" },
+    { sessionID: "ses_current" }
+  );
 
   assert.match(result.content, /Posted to room/);
   const lines = (await readFile(roomFile(ctx, ctx.env), "utf8")).trim().split("\n");
@@ -170,7 +204,9 @@ test("presence note names active peers and asks the agent to check with the user
 
 test("presence note reports non-OpenCode agents that cannot be messaged", async () => {
   const ctx = await fakeContext();
-  const peers = peersOf(ctx, { detectForeign: () => [{ name: "codex", pid: 4242, cwd: "/repo/a" }] });
+  const peers = peersOf(ctx, {
+    detectForeign: () => [{ name: "codex", pid: 4242, cwd: "/repo/a" }],
+  });
 
   const note = await peers.presenceNote("ses_current", { force: true });
   assert.match(note, /Non-OpenCode agents/);
@@ -184,7 +220,10 @@ test("presence note reports non-OpenCode agents that cannot be messaged", async 
 test("stale sessions do not trigger presence, but still list", async () => {
   const old = Date.now() - 90 * 24 * 60 * 60 * 1000;
   const ctx = await fakeContext({
-    data: [SESSIONS[0], { id: "ses_old", title: "Ancient work", time: { created: old, updated: old } }],
+    data: [
+      SESSIONS[0],
+      { id: "ses_old", title: "Ancient work", time: { created: old, updated: old } },
+    ],
   });
   const peers = peersOf(ctx);
 
@@ -195,7 +234,12 @@ test("stale sessions do not trigger presence, but still list", async () => {
 });
 
 test("presence ignores the current session's own children", async () => {
-  const child = { id: "ses_mine", title: "My subagent", parentID: "ses_current", time: { created: 1, updated: Date.now() } };
+  const child = {
+    id: "ses_mine",
+    title: "My subagent",
+    parentID: "ses_current",
+    time: { created: 1, updated: Date.now() },
+  };
   const ctx = await fakeContext({ data: [SESSIONS[0], child] });
   assert.equal(await peersOf(ctx).presenceNote("ses_current"), "");
 });
@@ -209,11 +253,29 @@ test("presence note is empty when nothing is happening", async () => {
 test("unread room messages are folded into the presence note", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);
-  await peers.roomSend({ text: "don't touch src/cli.ts", fromTitle: "other agent" }, { sessionID: "ses_alpha" });
+  await peers.roomSend(
+    { text: "don't touch src/cli.ts", fromTitle: "other agent" },
+    { sessionID: "ses_alpha" }
+  );
 
   const note = await peers.presenceNote("ses_current", { force: true });
   assert.match(note, /Unread room messages/);
   assert.match(note, /don't touch src\/cli\.ts/);
+});
+
+test("usage guidance is injected once per session, independently", async () => {
+  const ctx = await fakeContext({ withTools: true });
+  await plugin.setup(ctx);
+
+  const first = { sessionID: "ses_one", system: [] };
+  const second = { sessionID: "ses_two", system: [] };
+  await ctx.calls.contextHook(first);
+  await ctx.calls.contextHook(second);
+  await ctx.calls.contextHook(first);
+
+  assert.equal(first.system.length, 2);
+  assert.equal(second.system.length, 2);
+  assert.match(second.system[0].text, /peers_send/);
 });
 
 test("setup registers a namespace, four tools, and a context hook", async () => {
@@ -222,12 +284,10 @@ test("setup registers a namespace, four tools, and a context hook", async () => 
 
   assert.equal(plugin.id, "peers");
   assert.equal(ctx.calls.namespace, undefined, "tools are named explicitly, not namespaced");
-  assert.deepEqual(ctx.calls.tools.map((tool) => tool.name), [
-    "peers_list",
-    "peers_send",
-    "peers_room_send",
-    "peers_room_read",
-  ]);
+  assert.deepEqual(
+    ctx.calls.tools.map((tool) => tool.name),
+    ["peers_list", "peers_send", "peers_room_send", "peers_room_read"]
+  );
   for (const tool of ctx.calls.tools) {
     assert.equal(tool.input.type, "object");
     assert.equal(typeof tool.execute, "function");
@@ -237,9 +297,11 @@ test("setup registers a namespace, four tools, and a context hook", async () => 
 
   const event = { sessionID: "ses_current", system: [] };
   await ctx.calls.contextHook(event);
-  assert.equal(event.system.length, 1);
-  assert.match(event.system[0].text, /<peers>/);
+  assert.equal(event.system.length, 2, "bootstrap plus presence");
+  assert.match(event.system[0].text, /<peers-tools>/);
+  assert.match(event.system[0].text, /peers_room_send/);
+  assert.match(event.system[1].text, /<peers>/);
 
   await ctx.calls.contextHook(event);
-  assert.equal(event.system.length, 1, "identical note is not injected twice");
+  assert.equal(event.system.length, 2, "neither block repeats");
 });

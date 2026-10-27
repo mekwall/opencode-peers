@@ -1,5 +1,7 @@
 [tools]
 bun = "1.4.0"
+biome = "2.5.15"
+lefthook = "1.13.6"
 
 [tasks.test]
 description = "Run the plugin test suite under Bun"
@@ -8,3 +10,11 @@ run = "bun test test/"
 [tasks."test:node"]
 description = "Run the same suite under Node's test runner"
 run = "node --test test/*.test.mjs"
+
+[tasks.lint]
+description = "Lint and format-check with Biome"
+run = "biome check ."
+
+[tasks.format]
+description = "Apply Biome formatting and safe fixes"
+run = "biome check --write ."

@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://json.schemastore.org/lefthook.json
+
+assert_lefthook_installed: true
+min_version: 1.6.0
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome
+      glob: "*.{js,mjs,json}"
+      run: biome check --write --no-errors-on-unmatched --staged {staged_files}
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: test
+      run: bun test test/
