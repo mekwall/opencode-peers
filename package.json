@@ -1,0 +1,31 @@
+{
+  "name": "@mekwall/opencode-peers",
+  "version": "0.1.0",
+  "description": "Peer awareness, direct messages, and a shared room for OpenCode sessions working in the same repo.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "bun test test/",
+    "test:node": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "multi-agent",
+    "cross-session",
+    "messaging"
+  ],
+  "opencode": {
+    "plugin": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
