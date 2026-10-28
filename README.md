@@ -17,9 +17,19 @@ Three tools, one-line descriptions, compact output. Alias = 4-char hash of the s
 |---|---|---|
 | `peers_list` | `all?`, `limit?` | `alias age title` lines; `name#pid (no dm)` for non-OpenCode agents |
 | `peers_send` | `to`, `msg`, `steer?` | `sent <alias>`; delivers `[peer <alias>] <msg>` |
-| `peers_room` | `msg?`, `limit?` | posting returns `posted; sent <aliases>`; reading returns `alias> msg` lines or `none` |
+| `peers_room` | `msg?` | posting returns `posted` (no fan-out); reading returns `alias> msg` lines or `none` |
 
 Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>"}`. Agents are told to write terse messages — the protocol is deliberately unfriendly to human readers, because the only consumers are models.
+
+## Loop safety
+
+Agent-to-agent messaging that wakes peers is a loop generator: one post becomes up to N turns, each turn can post again. Three structural guards:
+
+1. **Room posts never create turns.** `peers_room` only appends to the log. Peers see unread messages on their next natural turn through the presence note, or by calling `peers_room`. A broadcast therefore costs zero extra turns and cannot cascade.
+2. **No acknowledgements.** The bootstrap says "no acks: answer only if action is needed"; the room tool description repeats it. A peer that sees an informational message does nothing.
+3. **Notes are deduplicated.** The presence note is injected once per distinct content per session, so an unchanged roster or the same unread message is not repeated turn after turn.
+
+DMs (`peers_send`) still deliver as a queued user turn to one session, because they are addressed and expected to prompt work. They queue rather than steer, so they never interrupt a running turn.
 
 ## Token budget
 
