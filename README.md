@@ -15,7 +15,7 @@ Three tools, one-line descriptions, compact output. Alias = 4-char hash of the s
 
 | Tool | Args | Returns |
 |---|---|---|
-| `peers_list` | `all?`, `limit?` | `alias age title` lines; `name#pid (no dm)` for non-OpenCode agents |
+| `peers_list` | `all?` | `alias age model agent dir \| title` lines; `name#pid (no dm)` for non-OpenCode agents |
 | `peers_send` | `to`, `msg`, `steer?` | `sent <alias>`; delivers `<alias>> <msg>` |
 | `peers_room` | `msg?` | posting returns `posted` (no fan-out); reading returns `alias> msg` lines or `none` |
 
@@ -46,6 +46,8 @@ Agent-to-agent messaging that wakes peers is a loop generator: one post becomes 
 4. **Notes are deduplicated.** The presence note is injected once per distinct content per session, so an unchanged roster or the same unread message is not repeated turn after turn.
 
 DMs (`peers_send`) still deliver as a queued user turn to one session, because they are addressed and expected to prompt work. They queue rather than steer, so they never interrupt a running turn.
+
+`peers_list` answers "who is working, where, with what" in one call: model and agent come from the session, directory is `~`-relative, subagents are folded into their root. No shell, no `/proc`, no API calls from the agent.
 
 ## Token budget
 

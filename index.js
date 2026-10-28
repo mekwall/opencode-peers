@@ -377,9 +377,15 @@ export function createPeers(ctx, options = {}) {
         0,
         Math.min(Number(input.limit) || 15, MAX_LIMIT)
       );
-      const lines = list.map(
-        (s) => `${aliasFor(s.id)} ${ago(s.time?.updated)} ${clip(s.title, 40)}`
-      );
+      const home = env.HOME || homedir();
+      const lines = list.map((s) => {
+        const dir = String(s.location?.directory ?? s.location?.path ?? "?")
+          .replace(home, "~")
+          .replace(/^~\/repos\//, "~/r/");
+        const model = (s.model?.id ?? "?").replace(/^.*\//, "");
+        const agent = s.agent ?? "-";
+        return `${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 34)} | ${clip(s.title, 36)}`;
+      });
       const foreign = all ? [] : detectForeignSafe();
       if (lines.length === 0 && foreign.length === 0) return { content: "none" };
       return {
@@ -457,7 +463,7 @@ const plugin = {
     await ctx.tool.transform((editor) => {
       editor.add({
         name: "peers_list",
-        description: "Peers: `alias age title`; foreign#pid = non-OpenCode.",
+        description: "Peers: `alias age model agent dir | title`; foreign#pid = non-OpenCode.",
         input: {
           type: "object",
           properties: { all: { type: "boolean" } },

@@ -21,12 +21,15 @@ const A0 = aliasFor(CUR);
 const A1 = aliasFor(PEER1);
 const A2 = aliasFor(PEER2);
 
+const where = { directory: "/repo/a" };
+const who = { model: { id: "deepseek-v4.1-flash" }, agent: "build", location: where };
 const SESSIONS = [
-  { id: CUR, title: "Current work", time: { created: 1, updated: Date.now() } },
-  { id: PEER1, title: "Generator agent", time: { created: 1, updated: Date.now() } },
+  { id: CUR, title: "Current work", ...who, time: { created: 1, updated: Date.now() } },
+  { id: PEER1, title: "Generator agent", ...who, time: { created: 1, updated: Date.now() } },
   {
     id: PEER2,
     title: "Review agent with a very long descriptive title that should be clipped",
+    ...who,
     time: { created: 1, updated: Date.now() },
   },
 ];
@@ -101,9 +104,18 @@ test("list is compact: alias, age, clipped title", async () => {
   const out = text(await peersOf(ctx).list({}, { sessionID: CUR }));
 
   assert.ok(!out.includes("ses_"));
-  assert.match(out, new RegExp(`^${A1} now Generator agent$`, "m"));
-  assert.match(out, new RegExp(`^${A2} now Review agent with a very long descripti~$`, "m"));
-  assert.ok(out.length < 130, `roster too long: ${out.length}`);
+  assert.match(
+    out,
+    new RegExp(`^${A1} now deepseek-v4\\.1-flash build /repo/a \\| Generator agent$`, "m")
+  );
+  assert.match(
+    out,
+    new RegExp(
+      `^${A2} now deepseek-v4\\.1-flash build /repo/a \\| Review agent with a very long descr~$`,
+      "m"
+    )
+  );
+  assert.ok(out.length < 260, `roster too long: ${out.length}`);
   assert.ok(!out.includes("Current work"));
 });
 
