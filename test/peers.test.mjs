@@ -39,6 +39,10 @@ async function fakeContext({ data = SESSIONS, withTools = false } = {}) {
         calls.prompt.push(input);
         return {};
       },
+      get: async ({ sessionID }) => {
+        const found = data.find((s) => s.id === sessionID);
+        return found ?? { id: sessionID, title: "unknown", time: { updated: Date.now() } };
+      },
       hook: async (_name, callback) => {
         calls.contextHook = callback;
         return { dispose: async () => {} };
@@ -105,6 +109,35 @@ test("sessions from other directories are filtered out client-side", async () =>
   const ctx = await fakeContext({ data: [...SESSIONS, other] });
   const out = text(await peersOf(ctx).list({}, { sessionID: CUR }));
   assert.ok(!out.includes("elsewhere"), "other project leaked into roster");
+});
+
+test("subagents are not peers", async () => {
+  const child = {
+    id: "ses_dddd",
+    title: "child task",
+    parentID: PEER1,
+    time: { updated: Date.now() },
+  };
+  const ctx = await fakeContext({ data: [...SESSIONS, child] });
+
+  const out = text(await peersOf(ctx).list({}, { sessionID: CUR }));
+  assert.ok(!out.includes("child task"));
+  assert.ok(out.includes(A1));
+});
+
+test("a subagent's posts are attributed to its parent", async () => {
+  const child = {
+    id: "ses_dddd",
+    title: "child task",
+    parentID: CUR,
+    time: { updated: Date.now() },
+  };
+  const ctx = await fakeContext({ data: [...SESSIONS, child] });
+  const peers = peersOf(ctx);
+
+  await peers.room({ msg: "from child" }, { sessionID: "ses_dddd" });
+  const logged = JSON.parse((await readFile(peers.roomPath(), "utf8")).trim());
+  assert.equal(logged.i, A0, "child posts as the root alias");
 });
 
 test("list includes foreign agents that cannot be messaged", async () => {

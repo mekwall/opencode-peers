@@ -222,10 +222,22 @@ export function createPeers(ctx, options = {}) {
     const here = directory();
     return (page?.data ?? []).filter((s) => {
       if (s.id === currentSessionID) return false;
+      // Subagents are children of a root session; the root already represents them.
+      if (!all && s.parentID) return false;
       if (all || !here) return true;
       const loc = s.location?.directory ?? s.location?.path ?? s.directory;
       return !loc || loc === here;
     });
+  }
+
+  async function rootId(sessionID) {
+    if (!sessionID) return sessionID;
+    try {
+      const session = await ctx.session.get({ sessionID });
+      return session?.parentID ?? sessionID;
+    } catch {
+      return sessionID;
+    }
   }
 
   async function roster(currentSessionID, { fresh = false, all = false } = {}) {
@@ -307,7 +319,7 @@ export function createPeers(ctx, options = {}) {
       if (target.id === context.sessionID) throw new Error("self");
       await ctx.session.prompt({
         sessionID: target.id,
-        text: `${aliasFor(context.sessionID)}> ${text}`,
+        text: `${aliasFor(await rootId(context.sessionID))}> ${text}`,
         delivery: input.steer === true ? "steer" : "queue",
       });
       return { content: `sent ${aliasFor(target.id)}` };
@@ -316,7 +328,7 @@ export function createPeers(ctx, options = {}) {
     room: async (input = {}, context = {}) => {
       if (typeof input.msg === "string" && input.msg.trim()) {
         const message = {
-          i: aliasFor(context.sessionID),
+          i: aliasFor(await rootId(context.sessionID)),
           t: Math.floor(now() / 1000),
           x: clip(input.msg, 4000),
         };

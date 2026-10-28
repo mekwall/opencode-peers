@@ -21,6 +21,10 @@ Three tools, one-line descriptions, compact output. Alias = 4-char hash of the s
 
 Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>"}`. Agents are told to write terse messages — the protocol is deliberately unfriendly to human readers, because the only consumers are models.
 
+## Subagents
+
+Child sessions (subagents) are not peers: `peers_list` and the presence note show root sessions only, so ten parallel subagents do not become ten roster lines. When a child does message — a DM or a room post — it is attributed to its root session's alias, so the conversation stays readable as one agent. Attribution costs one `session.get` per outbound message; a missing parent falls back to the child's own alias.
+
 ## Loop safety
 
 Agent-to-agent messaging that wakes peers is a loop generator: one post becomes up to N turns, each turn can post again. Three structural guards:
