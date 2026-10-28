@@ -95,6 +95,19 @@ DMs (`peers_send`) still deliver as a queued user turn to one session, because t
 
 `peers_list` answers "who is working, where, with what" in one call: model and agent come from the session, directory is `~`-relative, subagents are folded into their root. No shell, no `/proc`, no API calls from the agent.
 
+## Protocol vs serialization
+
+The coordination protocol is internal and typed — integer ops, aliases, subject, payload (`protocol.js`). How it is rendered to a model is a separate decision:
+
+| Encoding | Wire | When |
+|---|---|---|
+| `text` (default) | `p1 claim ab12: docs/x.md` | self-describing; no decode table needed |
+| `code` | `p1 1 ab12 docs/x.md` | shorter, but needs a decode table in context |
+
+`costModel()` scores both by **expected resolution cost** — message tokens + what the receiver spends understanding it + an ambiguity penalty for op codes — not by message length. Its verdict on a deterministic claim is `code`, but the default stays `text` because nothing in the bootstrap teaches the ordinal form, so the decode table would be paid on every turn. `PEERS_ENC=code` switches it for benchmarking.
+
+This is the seam that makes MessagePack / integer ids / per-model encodings a change in one file, not a protocol redesign.
+
 ## Token budget
 
 Measured on the current build:

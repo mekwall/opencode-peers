@@ -23,6 +23,8 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
+import { encode } from "./protocol.js";
+
 // Desktop notification when an agent needs the user. OpenCode writes the live
 // server URL to its state dir, so the notification can deep-link to the session.
 export function serviceUrl(env = process.env) {
@@ -562,7 +564,10 @@ export function createPeers(ctx, options = {}) {
       if (target.id === context.sessionID) throw new Error("self");
       await ctx.session.prompt({
         sessionID: target.id,
-        text: `${aliasFor(await rootId(context.sessionID))}> ${text}`,
+        text: encode(
+          { op: "dm", from: aliasFor(await rootId(context.sessionID)), text },
+          { encoding: env.PEERS_ENC ?? "text" }
+        ).message,
         delivery: input.steer === true ? "steer" : "queue",
       });
       return { content: `sent ${aliasFor(target.id)}` };
@@ -635,7 +640,10 @@ export function createPeers(ctx, options = {}) {
           const target = await resolve(clash.alias, context.sessionID);
           await ctx.session.prompt({
             sessionID: target.id,
-            text: `p1 claim ${alias}: ${clash.claim}`,
+            text: encode(
+              { op: "claim", from: alias, subject: clash.claim },
+              { encoding: env.PEERS_ENC ?? "text", deterministicTransitions: true }
+            ).message,
             delivery: "queue",
           });
         } catch {
@@ -672,7 +680,10 @@ export function createPeers(ctx, options = {}) {
           await roster(context.sessionID, { fresh: true }),
           context.sessionID
         ).slice(0, 12);
-        const text = `bcast ${sender}: ${message.x} (act only if relevant; never ack)`;
+        const text = encode(
+          { op: "bcast", from: sender, text: message.x },
+          { encoding: env.PEERS_ENC ?? "text" }
+        ).message;
         let delivered = 0;
         for (const peer of peers) {
           try {
@@ -755,10 +766,14 @@ const plugin = {
       editor.add({
         name: "peers_me",
         description:
-          "Register `goal` (<=60 chars) when you start work, or done=true when finished.",
+          "Register `goal` (<=60 chars) and up to 3 `claim` paths when you start, or done=true when finished.",
         input: {
           type: "object",
-          properties: { goal: { type: "string" }, done: { type: "boolean" } },
+          properties: {
+            goal: { type: "string" },
+            claim: { type: "array", items: { type: "string" } },
+            done: { type: "boolean" },
+          },
           additionalProperties: false,
         },
         execute: (input, context) => peers.me(input, context),

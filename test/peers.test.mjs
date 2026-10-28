@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
 import plugin, {
   aliasFor,
   createPeers,
@@ -15,6 +14,7 @@ import plugin, {
   repoState,
   stateRoot,
 } from "../index.js";
+import { costModel, encode, parse } from "../protocol.js";
 
 const CUR = "ses_aaaa0000";
 const PEER1 = "ses_bbbb1111";
@@ -209,7 +209,7 @@ test("broadcast is the only room post that wakes peers, and it is throttled", as
     "posted; bcast 2"
   );
   assert.equal(ctx.calls.prompt.length, 2);
-  assert.match(ctx.calls.prompt[0].text, new RegExp(`^bcast ${A0}: status`));
+  assert.match(ctx.calls.prompt[0].text, new RegExp(`^p1 bcast ${A0}: status`));
   assert.match(ctx.calls.prompt[0].text, /never ack/);
 
   assert.equal(
@@ -358,8 +358,10 @@ test("setup registers three cheap tools and one hook", async () => {
     ["peers_list", "peers_send", "peers_me", "peers_room"]
   );
   for (const tool of ctx.calls.tools) {
-    assert.ok(tool.description.length < 100, `${tool.name} description too long`);
+    assert.ok(tool.description.length < 120, `${tool.name} description too long`);
   }
+  const me = ctx.calls.tools.find((tool) => tool.name === "peers_me");
+  assert.deepEqual(Object.keys(me.input.properties).sort(), ["claim", "done", "goal"]);
 
   const event = { sessionID: CUR, system: [] };
   await ctx.calls.contextHook(event);
@@ -381,7 +383,7 @@ test("always-on surface stays inside the token budget", async () => {
   const schemas = JSON.stringify(ctx.calls.tools);
   const tokens = (bootstrap.length + schemas.length) / 4;
 
-  assert.ok(tokens < 290, `always-on surface ~${Math.round(tokens)} tokens`);
+  assert.ok(tokens < 320, `always-on surface ~${Math.round(tokens)} tokens`);
   assert.match(bootstrap, /no acks/);
 });
 
@@ -449,4 +451,35 @@ test("notification plans are platform-appropriate and clickable", () => {
   assert.match(mac.args[1], /display notification/);
 
   assert.equal(notifyPlan({ platform: "win32", title: "t", body: "b" }), undefined);
+});
+
+test("protocol round-trips in both renderings", () => {
+  const claim = parse("p1 claim ab12: docs/x.md");
+  assert.equal(claim.op, 1);
+  assert.equal(claim.subject, "docs/x.md");
+
+  const code = parse("p1 1 ab12 docs/x.md");
+  assert.equal(code.op, 1);
+  assert.equal(code.subject, "docs/x.md");
+
+  const dm = parse("ab12> status?");
+  assert.equal(dm.op, 3);
+  assert.equal(dm.text, "status?");
+
+  assert.equal(parse("unrelated"), undefined);
+});
+
+test("encoding is chosen by expected resolution cost, not message length", () => {
+  const claim = { op: "claim", from: "ab12", subject: "docs/x.md" };
+
+  // Deterministic transition: the receiver only has to comply, so the compact code wins.
+  assert.equal(costModel(claim, { deterministicTransitions: true }).chosen, "code");
+
+  // Negotiation: ambiguity dominates, so readable text wins despite costing more to send.
+  const negotiation = { op: "bcast", from: "ab12", text: "conflicting approach on the parser" };
+  assert.equal(costModel(negotiation).chosen, "text");
+
+  // Explicit override always wins.
+  assert.equal(encode(claim, { encoding: "text" }).encoding, "text");
+  assert.match(encode(claim, { encoding: "code" }).message, /^p1 1 ab12 /);
 });
