@@ -58,7 +58,7 @@ OpenCode installs Git plugins with Bun and caches them by spec. After changing t
 rm -rf ~/.cache/opencode/npm/git-opencode-peers-*
 ```
 
-Then start a new session (or `/reload`). Copying `index.js` into `~/.config/opencode/plugins/peers.js` also works if you prefer a single file.
+Then restart the service (`opencode service restart`) — a config reload does not re-import plugin modules. Start a new session afterwards. Copying `index.js` into `~/.config/opencode/plugins/peers.js` also works if you prefer a single file.
 
 **Do not use `opencode plugin add` for this.** On OpenCode 2.1.4 it rewrites the whole global config file — it merged the machine-local `opencode.home.json` overrides into `opencode.json` (changed the model, injected a local proxy provider, dropped existing plugins) and still did not add the requested plugin. Edit the `plugin` array by hand.
 
