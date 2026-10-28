@@ -51,6 +51,15 @@ Notifications do not fire for room traffic — only for events where the agent i
 
 Child sessions (subagents) are not peers: `peers_list` and the presence note show root sessions only, so ten parallel subagents do not become ten roster lines. When a child does message — a DM or a room post — it is attributed to its root session's alias, so the conversation stays readable as one agent. Attribution costs one `session.get` per outbound message; a missing parent falls back to the child's own alias.
 
+## Who gets a turn
+
+| Action | Wakes peers? |
+|---|---|
+| `peers_me({goal})` / `peers_me({done:true})` | never — registration and deregistration are silent |
+| `peers_room({msg})` | never — appended to the log, read on demand |
+| `peers_room({msg, broadcast:true})` | yes — one queued turn each, throttled to one broadcast per sender per 5 min, max 12 peers, text marked `bcast … (act only if relevant; never ack)` |
+| `peers_send({to,msg})` | yes — one queued turn for that session |
+
 ## Loop safety
 
 Agent-to-agent messaging that wakes peers is a loop generator: one post becomes up to N turns, each turn can post again. Three structural guards:
