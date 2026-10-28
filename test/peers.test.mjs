@@ -365,7 +365,8 @@ test("setup registers three cheap tools and one hook", async () => {
   await ctx.calls.contextHook(event);
   assert.equal(event.system.length, 2);
   assert.match(event.system[0].text, /^<peers>tools: peers_list/);
-  assert.ok(event.system[0].text.length < 225, "bootstrap too long");
+  assert.ok(event.system[0].text.length < 300, "bootstrap too long");
+  assert.match(event.system[0].text, /p1 claim/, "receive semantics are taught");
 
   await ctx.calls.contextHook(event);
   assert.equal(event.system.length, 2, "blocks do not repeat");

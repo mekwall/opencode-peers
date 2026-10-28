@@ -65,6 +65,11 @@ Child sessions (subagents) are not peers: `peers_list` and the presence note sho
 
 ## Coordination protocol (p1)
 
+The bootstrap teaches both directions, since agents were only told how to send:
+
+- **out**: `alias> text` (DM), `p1 claim <alias>: <path>`, `p1 bcast <alias>: …`
+- **in**: `<alias>> text` is a DM — act only if it needs you; `p1 claim` means your claim overlaps and you should yield or reply once; `p1 bcast` is act-only-if-relevant. None of them are acknowledged, and none are reported to the user.
+
 Messages are typed and terse; there is no conversation:
 
 | Wire | Meaning |
