@@ -27,7 +27,8 @@ Agent-to-agent messaging that wakes peers is a loop generator: one post becomes 
 
 1. **Room posts never create turns.** `peers_room` only appends to the log. Peers see unread messages on their next natural turn through the presence note, or by calling `peers_room`. A broadcast therefore costs zero extra turns and cannot cascade.
 2. **No acknowledgements.** The bootstrap says "no acks: answer only if action is needed"; the room tool description repeats it. A peer that sees an informational message does nothing.
-3. **Notes are deduplicated.** The presence note is injected once per distinct content per session, so an unchanged roster or the same unread message is not repeated turn after turn.
+3. **The room is pull-only.** Room messages are never injected into the prompt; an agent reads them only when it calls `peers_room`. Nothing to acknowledge, nothing to narrate to the user.
+4. **Notes are deduplicated.** The presence note is injected once per distinct content per session, so an unchanged roster or the same unread message is not repeated turn after turn.
 
 DMs (`peers_send`) still deliver as a queued user turn to one session, because they are addressed and expected to prompt work. They queue rather than steer, so they never interrupt a running turn.
 
