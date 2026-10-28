@@ -63,6 +63,20 @@ Child sessions (subagents) are not peers: `peers_list` and the presence note sho
 | `peers_room({msg, broadcast:true})` | yes — one queued turn each, throttled to one broadcast per sender per 5 min, max 12 peers, text marked `bcast … (act only if relevant; never ack)` |
 | `peers_send({to,msg})` | yes — one queued turn for that session |
 
+## Coordination protocol (p1)
+
+Messages are typed and terse; there is no conversation:
+
+| Wire | Meaning |
+|---|---|
+| `p1 claim <alias>: <path>` | two claims overlap; sent to the other party only, once per pair+path |
+| `p1 bcast <alias>: <text> (act only if relevant; never ack)` | explicit broadcast |
+| `<alias>> <text>` | direct message |
+
+Claim overlap is resolved in the **caller's** tool result (`clash <alias>:<path>`), so discovering a conflict costs no extra turn. Only the other party is woken, and only when a claim actually overlaps.
+
+Event-driven work still to come: file-change tracking, commit gating, and encoding benchmarks against a real tokenizer (see §7 of the coordination spec).
+
 ## Loop safety
 
 Agent-to-agent messaging that wakes peers is a loop generator: one post becomes up to N turns, each turn can post again. Three structural guards:

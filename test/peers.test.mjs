@@ -311,6 +311,34 @@ test("registered peers are marked and stale ones drop out of the default view", 
   assert.ok(allView.includes("ancient"), "all=true shows stale sessions");
 });
 
+test("overlapping claims clash in the caller's result and notify only the other party", async () => {
+  const ctx = await fakeContext();
+  const peers = peersOf(ctx);
+
+  await peers.me({ goal: "a", claim: ["docs/research/x.md"] }, { sessionID: CUR });
+  const result = text(
+    await peers.me({ goal: "b", claim: ["docs/research"] }, { sessionID: PEER1 })
+  );
+
+  assert.match(result, new RegExp(`clash ${A0}:docs/research/x\\.md`));
+  assert.equal(ctx.calls.prompt.length, 1, "only the other party is notified");
+  assert.equal(ctx.calls.prompt[0].sessionID, CUR);
+  assert.match(ctx.calls.prompt[0].text, new RegExp(`^p1 claim ${A1}: docs/research/x\\.md$`));
+});
+
+test("non-overlapping claims stay silent", async () => {
+  const ctx = await fakeContext();
+  const peers = peersOf(ctx);
+
+  await peers.me({ goal: "a", claim: ["docs/research"] }, { sessionID: CUR });
+  const result = text(
+    await peers.me({ goal: "b", claim: ["packages/core/src"] }, { sessionID: PEER1 })
+  );
+
+  assert.equal(result, "registered: b");
+  assert.equal(ctx.calls.prompt.length, 0);
+});
+
 test("registration is readable back", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);

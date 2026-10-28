@@ -361,6 +361,7 @@ export function createPeers(ctx, options = {}) {
   const activeWithinMs = options.activeWithinMs ?? ACTIVE_WITHIN_MS;
   const directory = () => ctx?.location?.directory;
   const lastSeen = new Map();
+  const notified = new Set();
   const lastBroadcast = new Map();
   let cache;
 
@@ -547,11 +548,64 @@ export function createPeers(ctx, options = {}) {
         return { content: "deregistered" };
       }
       const goal = clip(input.goal, 60);
-      if (!goal)
-        return { content: registry[alias]?.g ? `goal: ${registry[alias].g}` : "unregistered" };
-      registry[alias] = { g: goal, t: Date.now(), s: context.sessionID };
+      if (!goal) {
+        const entry = registry[alias];
+        if (!entry?.g) return { content: "unregistered" };
+        const claimList = entry.c?.length ? ` [${entry.c.join(", ")}]` : "";
+        return { content: `goal: ${entry.g}${claimList}` };
+      }
+
+      const claims = (Array.isArray(input.claim) ? input.claim : [input.claim])
+        .filter((value) => typeof value === "string" && value.trim())
+        .slice(0, 3)
+        .map((value) => clip(value, 40));
+
+      const clashes = [];
+      for (const [other, entry] of Object.entries(registry)) {
+        if (other === alias || entry?.done) continue;
+        for (const mine of claims) {
+          for (const theirs of entry.c ?? []) {
+            const a = mine.toLowerCase();
+            const b = theirs.toLowerCase();
+            if (a.includes(b) || b.includes(a)) clashes.push({ alias: other, claim: theirs });
+          }
+        }
+      }
+
+      const state = repoState(directory()) ?? {};
+      registry[alias] = {
+        g: goal,
+        c: claims,
+        t: Date.now(),
+        s: context.sessionID,
+        b: state.branch,
+        h: state.sha,
+        l: state.locked === true,
+      };
       writeRegistry(registry, env);
-      return { content: `registered: ${goal}` };
+
+      // Only the other party is notified, once per pair+claim. The caller learns
+      // the clash from this result, so discovering it costs no extra turn.
+      for (const clash of clashes) {
+        const key = `${alias}>${clash.alias}>${clash.claim}`;
+        if (notified.has(key)) continue;
+        notified.add(key);
+        try {
+          const target = await resolve(clash.alias, context.sessionID);
+          await ctx.session.prompt({
+            sessionID: target.id,
+            text: `p1 claim ${alias}: ${clash.claim}`,
+            delivery: "queue",
+          });
+        } catch {
+          // peer vanished; the registry still records the overlap
+        }
+      }
+
+      if (clashes.length === 0) return { content: `registered: ${goal}` };
+      return {
+        content: `registered: ${goal}; clash ${clashes.map((c) => `${c.alias}:${c.claim}`).join(",")}`,
+      };
     },
 
     room: async (input = {}, context = {}) => {
