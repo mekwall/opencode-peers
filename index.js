@@ -307,7 +307,7 @@ export function createPeers(ctx, options = {}) {
       if (target.id === context.sessionID) throw new Error("self");
       await ctx.session.prompt({
         sessionID: target.id,
-        text: `[peer ${aliasFor(context.sessionID)}] ${text}`,
+        text: `${aliasFor(context.sessionID)}> ${text}`,
         delivery: input.steer === true ? "steer" : "queue",
       });
       return { content: `sent ${aliasFor(target.id)}` };

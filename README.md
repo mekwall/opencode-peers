@@ -16,7 +16,7 @@ Three tools, one-line descriptions, compact output. Alias = 4-char hash of the s
 | Tool | Args | Returns |
 |---|---|---|
 | `peers_list` | `all?`, `limit?` | `alias age title` lines; `name#pid (no dm)` for non-OpenCode agents |
-| `peers_send` | `to`, `msg`, `steer?` | `sent <alias>`; delivers `[peer <alias>] <msg>` |
+| `peers_send` | `to`, `msg`, `steer?` | `sent <alias>`; delivers `<alias>> <msg>` |
 | `peers_room` | `msg?` | posting returns `posted` (no fan-out); reading returns `alias> msg` lines or `none` |
 
 Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>"}`. Agents are told to write terse messages — the protocol is deliberately unfriendly to human readers, because the only consumers are models.

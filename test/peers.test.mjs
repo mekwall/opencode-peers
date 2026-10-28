@@ -120,7 +120,7 @@ test("send resolves an alias and stays terse", async () => {
   assert.equal(out, `sent ${A1}`);
   assert.deepEqual(ctx.calls.prompt[0], {
     sessionID: PEER1,
-    text: `[peer ${A0}] parser moved`,
+    text: `${A0}> parser moved`,
     delivery: "queue",
   });
 });
