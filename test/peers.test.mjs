@@ -8,6 +8,7 @@ import plugin, {
   aliasFor,
   createPeers,
   detectForeignAgents,
+  dirtyState,
   eventSessionID,
   isAskEvent,
   notifyPlan,
@@ -393,6 +394,29 @@ test("repo state is read from .git without shelling out", async () => {
   await writeFile(join(root, ".git", "index.lock"), "");
   assert.equal(repoState(root).locked, true);
   assert.equal(repoState("/definitely/not/a/repo"), undefined);
+});
+
+test("dirty state is path-scoped and distinguishes staged from unstaged", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const root = await mkdtemp(join(tmpdir(), "peers-dirty-"));
+  const git = (...args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  git("init", "-q", ".");
+  git("config", "user.email", "t@t");
+  git("config", "user.name", "t");
+  await writeFile(join(root, "a.md"), "a\n");
+  await writeFile(join(root, "b.md"), "b\n");
+  git("add", "-A");
+  git("commit", "-qm", "init");
+  assert.deepEqual(dirtyState(root, [], 0), { staged: 0, unstaged: 0, files: 0 });
+
+  await writeFile(join(root, "a.md"), "a changed\n");
+  await writeFile(join(root, "b.md"), "b changed\n");
+  git("add", "b.md");
+
+  assert.deepEqual(dirtyState(root, [], 0), { staged: 1, unstaged: 1, files: 2 });
+  assert.deepEqual(dirtyState(root, ["a.md"], 0), { staged: 0, unstaged: 1, files: 1 });
+  assert.deepEqual(dirtyState(root, ["b.md"], 0), { staged: 1, unstaged: 0, files: 1 });
+  assert.equal(dirtyState("/definitely/not/a/repo"), undefined);
 });
 
 test("ask events are recognised and their session extracted", () => {

@@ -354,6 +354,38 @@ export function repoState(directory) {
   }
 }
 
+// Index cleanliness is a git-only fact, so the plugin computes it rather than
+// asking peers to report it. Bounded, path-scoped and cached: zero LLM tokens,
+// and it never inspects the whole tree.
+const dirtyCache = new Map();
+export function dirtyState(directory, paths = [], ttlMs = 10_000) {
+  if (!directory) return undefined;
+  const key = `${directory}|${paths.join(",")}`;
+  const hit = dirtyCache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+  let value;
+  try {
+    const args = ["-C", directory, "status", "--porcelain", "-z"];
+    if (paths.length > 0) args.push("--", ...paths);
+    const raw = execFileSync("git", args, { encoding: "utf8", timeout: 1500 });
+    const entries = raw.split("\0").filter(Boolean);
+    let staged = 0;
+    let unstaged = 0;
+    for (const entry of entries) {
+      const x = entry[0];
+      const y = entry[1];
+      if (x && x !== " " && x !== "?") staged += 1;
+      if (y && y !== " ") unstaged += 1;
+      if (x === "?" || y === "?") unstaged += 1;
+    }
+    value = { staged, unstaged, files: entries.length };
+  } catch {
+    value = undefined;
+  }
+  dirtyCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
 export function createPeers(ctx, options = {}) {
   const env = options.env ?? process.env;
   const now = options.now ?? (() => Date.now());
@@ -506,7 +538,9 @@ export function createPeers(ctx, options = {}) {
         const mark = s.done ? "\u2020" : s.registered ? "*" : "";
         const claims = s.claims?.length ? ` [${s.claims.join(",")}]` : "";
         const git = s.git
-          ? ` @${s.git.branch ?? "-"}/${s.git.sha ?? "-"}${s.git.locked ? "!lock" : ""}`
+          ? ` @${s.git.branch ?? "-"}/${s.git.sha ?? "-"}${s.git.locked ? "!lock" : ""}${
+              s.git.staged ? `+${s.git.staged}` : ""
+            }${s.git.unstaged ? `~${s.git.unstaged}` : ""}`
           : "";
         return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 30)} | ${clip(s.title, 30)}${claims}${git}`;
       });
@@ -573,6 +607,7 @@ export function createPeers(ctx, options = {}) {
       }
 
       const state = repoState(directory()) ?? {};
+      const dirty = dirtyState(directory(), claims) ?? {};
       registry[alias] = {
         g: goal,
         c: claims,
@@ -581,6 +616,8 @@ export function createPeers(ctx, options = {}) {
         b: state.branch,
         h: state.sha,
         l: state.locked === true,
+        st: dirty.staged,
+        un: dirty.unstaged,
       };
       writeRegistry(registry, env);
 

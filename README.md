@@ -32,7 +32,7 @@ peers_me({ done: true })                     -> deregistered
 ```
 
 - The goal replaces the session title in every roster and presence note (60 chars max).
-- Registration also records git state read straight from `.git` (no subprocess): branch, short commit, and whether `index.lock` exists, rendered as `@main/f93dbcb` or `@main/f93dbcb!lock`. That answers "is this tree mid-commit" without anyone running `git status`; it does **not** report dirty/untracked files, which genuinely need git.
+- Registration records branch, short commit and `index.lock` from `.git`, plus path-scoped `git status --porcelain` for the claimed paths (cached 10 s, bounded to 1.5 s). Rendered as `@main/f93dbcb+1~2` — `+` staged, `~` unstaged. The plugin computes this so no agent has to be asked, and no agent has to run `git status` to answer a peer.
 - `claim` (up to 3 path prefixes, 40 chars each) is shown in the roster, and `peers_list({ path })` filters to whoever claimed a matching path — so "who owns this file" needs no DM and no `git status`.
 - `done` writes a tombstone, so the session disappears from rosters immediately instead of waiting for the 30-minute idle window.
 - Both are keyed by root alias, so a subagent registers on behalf of its parent.
