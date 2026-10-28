@@ -287,6 +287,22 @@ test("registration replaces the title and done hides the session", async () => {
   assert.ok(!after.includes(A1), "deregistered peer is hidden");
 });
 
+test("registered peers are marked and stale ones drop out of the default view", async () => {
+  const old = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const stale = { id: "ses_ffff", title: "ancient", ...who, time: { created: old, updated: old } };
+  const ctx = await fakeContext({ data: [...SESSIONS, stale] });
+  const peers = peersOf(ctx);
+
+  await peers.me({ goal: "parser rewrite" }, { sessionID: PEER1 });
+
+  const activeView = text(await peers.list({}, { sessionID: CUR }));
+  assert.match(activeView, new RegExp(`^\\*${A1} `, "m"), "registered peer is starred");
+  assert.ok(!activeView.includes("ancient"), "stale session hidden by default");
+
+  const allView = text(await peers.list({ all: true }, { sessionID: CUR }));
+  assert.ok(allView.includes("ancient"), "all=true shows stale sessions");
+});
+
 test("registration is readable back", async () => {
   const ctx = await fakeContext();
   const peers = peersOf(ctx);

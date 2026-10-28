@@ -363,7 +363,7 @@ export function createPeers(ctx, options = {}) {
       })
       .map((s) => {
         const entry = registry[aliasFor(s.id)];
-        return entry?.g ? { ...s, title: entry.g } : s;
+        return entry?.g ? { ...s, title: entry.g, registered: true } : s;
       });
   }
 
@@ -417,7 +417,8 @@ export function createPeers(ctx, options = {}) {
   const tools = {
     list: async (input = {}, context = {}) => {
       const all = input.all === true;
-      const list = (await roster(context.sessionID, { fresh: true, all })).slice(
+      const rows = await roster(context.sessionID, { fresh: true, all });
+      const list = (all ? rows : active(rows, context.sessionID)).slice(
         0,
         Math.min(Number(input.limit) || 15, MAX_LIMIT)
       );
@@ -428,7 +429,8 @@ export function createPeers(ctx, options = {}) {
           .replace(/^~\/repos\//, "~/r/");
         const model = (s.model?.id ?? "?").replace(/^.*\//, "");
         const agent = s.agent ?? "-";
-        return `${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 34)} | ${clip(s.title, 36)}`;
+        const mark = s.registered ? "*" : "";
+        return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 34)} | ${clip(s.title, 36)}`;
       });
       const foreign = all ? [] : detectForeignSafe();
       if (lines.length === 0 && foreign.length === 0) return { content: "none" };
@@ -456,7 +458,14 @@ export function createPeers(ctx, options = {}) {
       if (input.done === true) {
         // Tombstone, not delete: the session may still exist, and we want it hidden
         // until the TTL prunes it.
-        registry[alias] = { done: true, t: Date.now() };
+        const previous = registry[alias] ?? {};
+        registry[alias] = {
+          g: previous.g,
+          s: previous.s,
+          done: true,
+          d: Date.now(),
+          t: Date.now(),
+        };
         writeRegistry(registry, env);
         return { content: "deregistered" };
       }
@@ -547,7 +556,8 @@ const plugin = {
     await ctx.tool.transform((editor) => {
       editor.add({
         name: "peers_list",
-        description: "Peers: `alias age model agent dir | title`; foreign#pid = non-OpenCode.",
+        description:
+          "Peers: `*alias age model agent dir | goal/title` (* = registered); foreign#pid = non-OpenCode.",
         input: {
           type: "object",
           properties: { all: { type: "boolean" } },

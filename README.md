@@ -35,6 +35,7 @@ peers_me({ done: true })                     -> deregistered
 - `done` writes a tombstone, so the session disappears from rosters immediately instead of waiting for the 30-minute idle window.
 - Both are keyed by root alias, so a subagent registers on behalf of its parent.
 - Entries (goals and tombstones) expire after two hours; the registry lives at `~/.local/share/opencode-peers/registry.json` (or the macOS equivalent).
+- `peers_list` is the lookup: `*` marks a registered session, the text after `|` is its stated goal (or the auto title when it never registered). The default view shows only sessions active in the last 30 minutes; `all: true` shows every session in the project, so finished and stale ones are discoverable without cluttering the normal roster.
 
 ## Notifications
 
