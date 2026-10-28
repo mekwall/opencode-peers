@@ -27,11 +27,12 @@ Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>
 Sessions are discovered automatically, so registration is optional — but the auto title is often vague ("Latest generated song lookup"), so an agent can state intent:
 
 ```
-peers_me({ goal: "rewriting the parser" })   -> registered
+peers_me({ goal: "rewriting the parser", claim: ["packages/core/src"] }) -> registered
 peers_me({ done: true })                     -> deregistered
 ```
 
 - The goal replaces the session title in every roster and presence note (60 chars max).
+- `claim` (up to 3 path prefixes, 40 chars each) is shown in the roster, and `peers_list({ path })` filters to whoever claimed a matching path — so "who owns this file" needs no DM and no `git status`.
 - `done` writes a tombstone, so the session disappears from rosters immediately instead of waiting for the 30-minute idle window.
 - Both are keyed by root alias, so a subagent registers on behalf of its parent.
 - Entries (goals and tombstones) expire after two hours; the registry lives at `~/.local/share/opencode-peers/registry.json` (or the macOS equivalent).

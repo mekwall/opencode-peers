@@ -425,7 +425,16 @@ export function createPeers(ctx, options = {}) {
     list: async (input = {}, context = {}) => {
       const all = input.all === true;
       const rows = await roster(context.sessionID, { fresh: true, all });
-      const list = (all ? rows : active(rows, context.sessionID)).slice(
+      const needle = typeof input.path === "string" ? input.path.trim().toLowerCase() : "";
+      const scoped = needle
+        ? rows.filter((s) =>
+            (s.claims ?? []).some((c) => {
+              const claim = c.toLowerCase();
+              return claim.includes(needle) || needle.includes(claim);
+            })
+          )
+        : rows;
+      const list = (all ? scoped : active(scoped, context.sessionID)).slice(
         0,
         Math.min(Number(input.limit) || 15, MAX_LIMIT)
       );
@@ -437,7 +446,8 @@ export function createPeers(ctx, options = {}) {
         const model = (s.model?.id ?? "?").replace(/^.*\//, "");
         const agent = s.agent ?? "-";
         const mark = s.done ? "\u2020" : s.registered ? "*" : "";
-        return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 34)} | ${clip(s.title, 36)}`;
+        const claims = s.claims?.length ? ` [${s.claims.join(",")}]` : "";
+        return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 30)} | ${clip(s.title, 30)}${claims}`;
       });
       const foreign = all ? [] : detectForeignSafe();
       if (lines.length === 0 && foreign.length === 0) return { content: "none" };
@@ -567,7 +577,7 @@ const plugin = {
           "Peers: `*alias age model agent dir | goal/title` (* = registered); foreign#pid = non-OpenCode.",
         input: {
           type: "object",
-          properties: { all: { type: "boolean" } },
+          properties: { all: { type: "boolean" }, path: { type: "string" } },
           additionalProperties: false,
         },
         execute: (input, context) => peers.list(input, context),

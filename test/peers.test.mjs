@@ -111,7 +111,7 @@ test("list is compact: alias, age, clipped title", async () => {
   assert.match(
     out,
     new RegExp(
-      `^${A2} now deepseek-v4\\.1-flash build /repo/a \\| Review agent with a very long descr~$`,
+      `^${A2} now deepseek-v4\\.1-flash build /repo/a \\| Review agent with a very long~$`,
       "m"
     )
   );
