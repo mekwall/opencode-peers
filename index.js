@@ -367,7 +367,11 @@ export function dirtyState(directory, paths = [], ttlMs = 10_000) {
   try {
     const args = ["-C", directory, "status", "--porcelain", "-z"];
     if (paths.length > 0) args.push("--", ...paths);
-    const raw = execFileSync("git", args, { encoding: "utf8", timeout: 1500 });
+    const raw = execFileSync("git", args, {
+      encoding: "utf8",
+      timeout: 1500,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     const entries = raw.split("\0").filter(Boolean);
     let staged = 0;
     let unstaged = 0;
