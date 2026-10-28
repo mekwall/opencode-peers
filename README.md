@@ -17,9 +17,24 @@ Three tools, one-line descriptions, compact output. Alias = 4-char hash of the s
 |---|---|---|
 | `peers_list` | `all?` | `alias age model agent dir \| title` lines; `name#pid (no dm)` for non-OpenCode agents |
 | `peers_send` | `to`, `msg`, `steer?` | `sent <alias>`; delivers `<alias>> <msg>` |
+| `peers_me` | `goal?`, `done?` | register a ≤60-char goal (replaces the vague auto title), or deregister |
 | `peers_room` | `msg?` | posting returns `posted` (no fan-out); reading returns `alias> msg` lines or `none` |
 
 Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>"}`. Agents are told to write terse messages — the protocol is deliberately unfriendly to human readers, because the only consumers are models.
+
+## Registration and deregistration
+
+Sessions are discovered automatically, so registration is optional — but the auto title is often vague ("Latest generated song lookup"), so an agent can state intent:
+
+```
+peers_me({ goal: "rewriting the parser" })   -> registered
+peers_me({ done: true })                     -> deregistered
+```
+
+- The goal replaces the session title in every roster and presence note (60 chars max).
+- `done` writes a tombstone, so the session disappears from rosters immediately instead of waiting for the 30-minute idle window.
+- Both are keyed by root alias, so a subagent registers on behalf of its parent.
+- Entries (goals and tombstones) expire after two hours; the registry lives at `~/.local/share/opencode-peers/registry.json` (or the macOS equivalent).
 
 ## Notifications
 

@@ -242,6 +242,31 @@ test("room traffic never enters the prompt", async () => {
   assert.equal(text(await peers.room({}, { sessionID: CUR })), `${A1}> don't touch cli.ts`);
 });
 
+test("registration replaces the title and done hides the session", async () => {
+  const ctx = await fakeContext();
+  const peers = peersOf(ctx);
+
+  assert.equal(
+    text(await peers.me({ goal: "rewriting the parser" }, { sessionID: PEER1 })),
+    "registered: rewriting the parser"
+  );
+  const listed = text(await peers.list({}, { sessionID: CUR }));
+  assert.match(listed, /rewriting the parser/);
+  assert.ok(!listed.includes("Generator agent"));
+
+  assert.equal(text(await peers.me({ done: true }, { sessionID: PEER1 })), "deregistered");
+  const after = text(await peers.list({}, { sessionID: CUR }));
+  assert.ok(!after.includes(A1), "deregistered peer is hidden");
+});
+
+test("registration is readable back", async () => {
+  const ctx = await fakeContext();
+  const peers = peersOf(ctx);
+  assert.equal(text(await peers.me({}, { sessionID: CUR })), "unregistered");
+  await peers.me({ goal: "song recut" }, { sessionID: CUR });
+  assert.equal(text(await peers.me({}, { sessionID: CUR })), "goal: song recut");
+});
+
 test("setup registers three cheap tools and one hook", async () => {
   const ctx = await fakeContext({ withTools: true });
   await plugin.setup(ctx);
@@ -249,7 +274,7 @@ test("setup registers three cheap tools and one hook", async () => {
   assert.equal(plugin.id, "peers");
   assert.deepEqual(
     ctx.calls.tools.map((t) => t.name),
-    ["peers_list", "peers_send", "peers_room"]
+    ["peers_list", "peers_send", "peers_me", "peers_room"]
   );
   for (const tool of ctx.calls.tools) {
     assert.ok(tool.description.length < 100, `${tool.name} description too long`);
@@ -274,7 +299,7 @@ test("always-on surface stays inside the token budget", async () => {
   const schemas = JSON.stringify(ctx.calls.tools);
   const tokens = (bootstrap.length + schemas.length) / 4;
 
-  assert.ok(tokens < 250, `always-on surface ~${Math.round(tokens)} tokens`);
+  assert.ok(tokens < 290, `always-on surface ~${Math.round(tokens)} tokens`);
   assert.match(bootstrap, /no acks/);
 });
 
