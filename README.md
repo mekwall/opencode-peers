@@ -21,6 +21,17 @@ Three tools, one-line descriptions, compact output. Alias = 4-char hash of the s
 
 Room log lines use one-character keys: `{"i":"<alias>","t":<epoch-s>,"x":"<text>"}`. Agents are told to write terse messages — the protocol is deliberately unfriendly to human readers, because the only consumers are models.
 
+## Notifications
+
+When an agent asks for the user — a permission prompt or a form — the plugin raises a desktop notification:
+
+- **Linux:** `notify-send -A default=Open --wait`, and clicking "Open" launches `xdg-open <server>/session/<id>`, which lands on the conversation in the web UI.
+- **macOS:** `osascript` notification (no click action; `terminal-notifier -open` would be needed for that).
+- The server URL is read from `~/.local/state/opencode/service.json`, so the link follows the live port.
+- One notification per session per 60 s. Disable with `PEERS_NOTIFY=0`.
+
+Notifications do not fire for room traffic — only for events where the agent is actually blocked on the user.
+
 ## Subagents
 
 Child sessions (subagents) are not peers: `peers_list` and the presence note show root sessions only, so ten parallel subagents do not become ten roster lines. When a child does message — a DM or a room post — it is attributed to its root session's alias, so the conversation stays readable as one agent. Attribution costs one `session.get` per outbound message; a missing parent falls back to the child's own alias.

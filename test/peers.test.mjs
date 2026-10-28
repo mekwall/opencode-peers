@@ -4,7 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import plugin, { aliasFor, createPeers, detectForeignAgents, stateRoot } from "../index.js";
+import plugin, {
+  aliasFor,
+  createPeers,
+  detectForeignAgents,
+  eventSessionID,
+  isAskEvent,
+  notifyPlan,
+  stateRoot,
+} from "../index.js";
 
 const CUR = "ses_aaaa0000";
 const PEER1 = "ses_bbbb1111";
@@ -256,4 +264,35 @@ test("always-on surface stays inside the token budget", async () => {
 
   assert.ok(tokens < 250, `always-on surface ~${Math.round(tokens)} tokens`);
   assert.match(bootstrap, /no acks/);
+});
+
+test("ask events are recognised and their session extracted", () => {
+  assert.equal(isAskEvent({ type: "permission.asked" }), true);
+  assert.equal(isAskEvent({ type: "form.created" }), true);
+  assert.equal(isAskEvent({ type: "session.idle" }), false);
+  assert.equal(isAskEvent({ type: "message.updated" }), false);
+
+  assert.equal(
+    eventSessionID({ type: "permission.asked", properties: { sessionID: "ses_x" } }),
+    "ses_x"
+  );
+  assert.equal(eventSessionID({ data: { session: { id: "ses_y" } } }), "ses_y");
+});
+
+test("notification plans are platform-appropriate and clickable", () => {
+  const linux = notifyPlan({
+    platform: "linux",
+    title: "t",
+    body: "b",
+    url: "http://127.0.0.1:1/session/x",
+  });
+  assert.equal(linux.cmd, "notify-send");
+  assert.ok(linux.args.includes("--wait"));
+  assert.equal(linux.url, "http://127.0.0.1:1/session/x");
+
+  const mac = notifyPlan({ platform: "darwin", title: "t", body: "b" });
+  assert.equal(mac.cmd, "osascript");
+  assert.match(mac.args[1], /display notification/);
+
+  assert.equal(notifyPlan({ platform: "win32", title: "t", body: "b" }), undefined);
 });
