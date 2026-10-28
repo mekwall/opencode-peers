@@ -10,7 +10,15 @@
 //   ${XDG_STATE_HOME:-~/.local/share}/opencode-peers/rooms/<project>.jsonl
 
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -297,6 +305,55 @@ export function writeRegistry(registry, env = process.env) {
   }
 }
 
+// Read the bits of git state an agent would otherwise shell out for: current
+// branch/commit and whether the index is locked (a commit in progress).
+// No subprocess: .git is just files, and worktrees point at it via `.git`.
+export function repoState(directory) {
+  if (!directory) return undefined;
+  try {
+    const dotgit = join(directory, ".git");
+    let gitDir = dotgit;
+    const stat = statSync(dotgit, { throwIfNoEntry: false });
+    if (stat?.isFile()) {
+      const pointer = readFileSync(dotgit, "utf8").trim();
+      const match = pointer.match(/^gitdir:\s*(.+)$/);
+      if (!match) return undefined;
+      gitDir = match[1];
+    }
+    const head = readFileSync(join(gitDir, "HEAD"), "utf8").trim();
+    const branch = head.startsWith("ref: ") ? head.slice(5).replace("refs/heads/", "") : undefined;
+    let sha = head.startsWith("ref: ") ? undefined : head;
+    if (!sha && branch) {
+      for (const candidate of [
+        join(gitDir, "refs", "heads", branch),
+        join(gitDir, "packed-refs"),
+      ]) {
+        try {
+          const body = readFileSync(candidate, "utf8");
+          const direct = body.trim();
+          if (/^[0-9a-f]{40}$/.test(direct)) {
+            sha = direct;
+            break;
+          }
+          const found = body.match(
+            new RegExp(`^([0-9a-f]{40})\\s+(?:refs/heads/)?${branch}$`, "m")
+          );
+          if (found) {
+            sha = found[1];
+            break;
+          }
+        } catch {
+          // not this one
+        }
+      }
+    }
+    const locked = existsSync(join(gitDir, "index.lock"));
+    return { branch, sha: sha?.slice(0, 7), locked };
+  } catch {
+    return undefined;
+  }
+}
+
 export function createPeers(ctx, options = {}) {
   const env = options.env ?? process.env;
   const now = options.now ?? (() => Date.now());
@@ -359,7 +416,7 @@ export function createPeers(ctx, options = {}) {
     return list
       .filter((s) => {
         const entry = registry[aliasFor(s.id)];
-        if (!entry || entry.done !== true) return true;
+        if (entry?.done !== true) return true;
         return includeDone || s.id === currentSessionID;
       })
       .map((s) => {
@@ -447,7 +504,10 @@ export function createPeers(ctx, options = {}) {
         const agent = s.agent ?? "-";
         const mark = s.done ? "\u2020" : s.registered ? "*" : "";
         const claims = s.claims?.length ? ` [${s.claims.join(",")}]` : "";
-        return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 30)} | ${clip(s.title, 30)}${claims}`;
+        const git = s.git
+          ? ` @${s.git.branch ?? "-"}/${s.git.sha ?? "-"}${s.git.locked ? "!lock" : ""}`
+          : "";
+        return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 30)} | ${clip(s.title, 30)}${claims}${git}`;
       });
       const foreign = all ? [] : detectForeignSafe();
       if (lines.length === 0 && foreign.length === 0) return { content: "none" };

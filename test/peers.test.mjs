@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -11,6 +11,7 @@ import plugin, {
   eventSessionID,
   isAskEvent,
   notifyPlan,
+  repoState,
   stateRoot,
 } from "../index.js";
 
@@ -352,6 +353,18 @@ test("always-on surface stays inside the token budget", async () => {
 
   assert.ok(tokens < 290, `always-on surface ~${Math.round(tokens)} tokens`);
   assert.match(bootstrap, /no acks/);
+});
+
+test("repo state is read from .git without shelling out", async () => {
+  const root = await mkdtemp(join(tmpdir(), "peers-git-"));
+  await mkdir(join(root, ".git", "refs", "heads"), { recursive: true });
+  await writeFile(join(root, ".git", "HEAD"), "ref: refs/heads/main\n");
+  await writeFile(join(root, ".git", "refs", "heads", "main"), `${"a".repeat(40)}\n`);
+  assert.deepEqual(repoState(root), { branch: "main", sha: "aaaaaaa", locked: false });
+
+  await writeFile(join(root, ".git", "index.lock"), "");
+  assert.equal(repoState(root).locked, true);
+  assert.equal(repoState("/definitely/not/a/repo"), undefined);
 });
 
 test("ask events are recognised and their session extracted", () => {
