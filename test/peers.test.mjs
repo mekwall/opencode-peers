@@ -285,6 +285,13 @@ test("registration replaces the title and done hides the session", async () => {
   assert.equal(text(await peers.me({ done: true }, { sessionID: PEER1 })), "deregistered");
   const after = text(await peers.list({}, { sessionID: CUR }));
   assert.ok(!after.includes(A1), "deregistered peer is hidden");
+
+  const history = text(await peers.list({ all: true }, { sessionID: CUR }));
+  assert.match(
+    history,
+    new RegExp(`\u2020${A1} `),
+    "all=true shows deregistered peers with \u2020"
+  );
 });
 
 test("registered peers are marked and stale ones drop out of the default view", async () => {

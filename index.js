@@ -349,21 +349,28 @@ export function createPeers(ctx, options = {}) {
   async function roster(currentSessionID, { fresh = false, all = false } = {}) {
     const key = `${currentSessionID}|${all}|${directory()}`;
     if (!fresh && cache?.key === key && now() - cache.at < PRESENCE_TTL_MS) return cache.sessions;
-    const list = withRegistry(await sessions(currentSessionID, { all }), currentSessionID);
+    const list = withRegistry(await sessions(currentSessionID, { all }), currentSessionID, all);
     if (!all) cache = { key, at: now(), sessions: list };
     return list;
   }
 
-  function withRegistry(list, currentSessionID) {
+  function withRegistry(list, currentSessionID, includeDone = false) {
     const registry = readRegistry(env);
     return list
       .filter((s) => {
         const entry = registry[aliasFor(s.id)];
-        return !(entry && entry.done === true) || s.id === currentSessionID;
+        if (!entry || entry.done !== true) return true;
+        return includeDone || s.id === currentSessionID;
       })
       .map((s) => {
         const entry = registry[aliasFor(s.id)];
-        return entry?.g ? { ...s, title: entry.g, registered: true } : s;
+        if (!entry) return s;
+        return {
+          ...s,
+          title: entry.g ?? s.title,
+          registered: Boolean(entry.g),
+          done: entry.done === true,
+        };
       });
   }
 
@@ -429,7 +436,7 @@ export function createPeers(ctx, options = {}) {
           .replace(/^~\/repos\//, "~/r/");
         const model = (s.model?.id ?? "?").replace(/^.*\//, "");
         const agent = s.agent ?? "-";
-        const mark = s.registered ? "*" : "";
+        const mark = s.done ? "\u2020" : s.registered ? "*" : "";
         return `${mark}${aliasFor(s.id)} ${ago(s.time?.updated)} ${model} ${agent} ${clip(dir, 34)} | ${clip(s.title, 36)}`;
       });
       const foreign = all ? [] : detectForeignSafe();
