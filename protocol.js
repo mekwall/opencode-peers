@@ -8,6 +8,10 @@ export const OPS = { claim: 1, bcast: 2, dm: 3 };
 export const OP_NAMES = { 1: "claim", 2: "bcast", 3: "dm" };
 
 // Internal wire form: fixed-width array, no keys. JSON only for persistence.
+/**
+ * Normalizes a loose event object into the internal, typed form. This is the
+ * only place that maps operation names to integer opcodes.
+ */
 export function pack(event) {
   return {
     op: OPS[event.op] ?? event.op,
@@ -20,6 +24,14 @@ export function pack(event) {
 
 // LLM-facing renderings. `text` is terse natural language; `code` is ordinal
 // tokens requiring a decode table. Both carry identical information.
+/**
+ * Renders an internal event for a model.
+ *
+ * @param event - Packed event.
+ * @param encoding - `text` is self-describing; `code` is ordinal and needs a
+ *                   decode table in the receiver's context.
+ * @returns The wire string, with no trailing whitespace.
+ */
 export function render(event, encoding = "text") {
   const op = OP_NAMES[event.op] ?? String(event.op);
   if (encoding === "code") {
@@ -32,6 +44,10 @@ export function render(event, encoding = "text") {
   return `p1 ${event.from}: ${event.text ?? event.subject ?? ""}`;
 }
 
+/**
+ * Deterministic parser for both renderings. Never guesses: an unrecognized
+ * shape returns `undefined` so callers can treat it as prose.
+ */
 export function parse(message) {
   const text = String(message ?? "");
   const code = text.match(/^p1 (\d) (\S+) (.*)$/);
@@ -61,6 +77,16 @@ export function parse(message) {
 const DECODE_OVERHEAD = 120; // tokens of instructions needed to interpret ordinal ops
 const AMBIGUITY_PENALTY = 900; // cost of a wrong or failed reconciliation
 
+/**
+ * Scores both renderings by *expected resolution cost*: message tokens plus what
+ * the receiver spends understanding it, plus an ambiguity penalty when the wire
+ * form carries no semantics the receiver can check.
+ *
+ * @param event - Packed event.
+ * @param options.deterministicTransitions - True when the plugin has already
+ *        decided the outcome, so the receiver only has to comply.
+ * @returns Per-encoding cost breakdown, the chosen encoding, and totals.
+ */
 export function costModel(event, { deterministicTransitions = false } = {}) {
   const subject = event.subject ?? event.text ?? "";
   const textTokens = Math.ceil(render(event, "text").length / 4);
@@ -86,6 +112,12 @@ export function costModel(event, { deterministicTransitions = false } = {}) {
   return { subject, text, code, chosen, totals: { text: total(text), code: total(code) } };
 }
 
+/**
+ * Packs and renders in one step.
+ *
+ * @param options.encoding - Force `text` or `code`; defaults to the cost model.
+ * @returns `{ encoding, message }` so callers can log which form went out.
+ */
 export function encode(event, options = {}) {
   const encoding = options.encoding ?? costModel(event, options).chosen;
   return { encoding, message: render(pack(event), encoding) };

@@ -27,6 +27,13 @@ import { encode } from "./protocol.js";
 
 // Desktop notification when an agent needs the user. OpenCode writes the live
 // server URL to its state dir, so the notification can deep-link to the session.
+/**
+ * Reads the live OpenCode server URL from its state file, so notifications can
+ * deep-link to a session on whatever port the service picked.
+ *
+ * @param env - Environment to resolve `XDG_STATE_HOME`/`HOME` from.
+ * @returns The base URL, or `undefined` when the state file is missing.
+ */
 export function serviceUrl(env = process.env) {
   const base = env.XDG_STATE_HOME || join(env.HOME || homedir(), ".local", "state");
   try {
@@ -37,6 +44,14 @@ export function serviceUrl(env = process.env) {
   }
 }
 
+/**
+ * Builds a platform-appropriate desktop notification plan. Pure: no process is
+ * spawned here, which keeps it testable.
+ *
+ * @param options - Platform, title, body and optional click-through URL.
+ * @returns A plan with `cmd`/`args` (plus `url` on Linux), or `undefined` when
+ *          the platform has no supported notifier.
+ */
 export function notifyPlan({ platform = process.platform, title, body, url }) {
   if (platform === "darwin") {
     const script = `display notification ${JSON.stringify(body)} with title ${JSON.stringify(title)}`;
@@ -84,12 +99,25 @@ function sendNotification(plan, spawnFn = spawn) {
   }
 }
 
+/**
+ * Whether an event means "an agent is blocked on the user" (permission prompt
+ * or form). Used to raise a notification without notifying on ordinary turns.
+ *
+ * @param event - Raw server event.
+ */
 export function isAskEvent(event) {
   const type = String(event?.type ?? "");
   if (!/permission|form|question|ask/i.test(type)) return false;
   return /(ask|request|created|pending|opened)/i.test(type);
 }
 
+/**
+ * Extracts the session id from an event, tolerating the several shapes the
+ * server uses across event types.
+ *
+ * @param event - Raw server event.
+ * @returns The session id, or `undefined` when the event carries none.
+ */
 export function eventSessionID(event) {
   return (
     event?.properties?.sessionID ??
@@ -120,6 +148,13 @@ function ago(ts) {
 // Session IDs look like ses_e807085a6ffe<random>. Prefixes collide for sessions created
 // in the same batch, so the alias is a 4-char base36 hash of the full id: short enough
 // to be cheap in every roster, room line and DM target, distinct enough locally.
+/**
+ * Stable 4-char base36 alias for a session id. Prefixes collide for sessions
+ * created in the same batch, so the alias hashes the whole id.
+ *
+ * @param sessionID - Full session id (`ses_...`).
+ * @returns Four lowercase base36 characters.
+ */
 export function aliasFor(sessionID) {
   const raw = String(sessionID ?? "");
   let hash = 2166136261;
@@ -137,6 +172,13 @@ function clip(value, max) {
   return text.length > max ? `${text.slice(0, max - 1)}~` : text;
 }
 
+/**
+ * Root directory for coordination state (registry, rooms). Follows XDG on
+ * Linux and Application Support on macOS; never lives inside a repo.
+ *
+ * @param env - Environment to resolve paths from.
+ * @param platform - Platform id, overridable for tests.
+ */
 export function stateRoot(env = process.env, platform = process.platform) {
   if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "opencode-peers");
   const home = env.HOME || homedir();
@@ -256,6 +298,14 @@ function darwinAgentProcesses() {
   return processes;
 }
 
+/**
+ * Finds non-OpenCode coding agents (Codex, Claude Code, Cursor, ...) whose cwd,
+ * argv or open files touch `directory`.
+ *
+ * @param directory - Repository/worktree to test membership against.
+ * @param platform - `linux` scans `/proc`; `darwin` uses `ps` + `lsof`.
+ * @returns `{ name, pid, cwd }` per distinct agent process.
+ */
 export function detectForeignAgents(directory, platform = process.platform) {
   if (!directory) return [];
   const snapshot =
@@ -281,6 +331,12 @@ function registryPath(env) {
   return join(stateRoot(env), "registry.json");
 }
 
+/**
+ * Reads the coordination registry, dropping entries older than two hours.
+ *
+ * @param env - Environment used to locate the state directory.
+ * @returns Alias-keyed entries: goal, claims, git state, tombstone.
+ */
 export function readRegistry(env = process.env) {
   try {
     const raw = JSON.parse(readFileSync(registryPath(env), "utf8"));
@@ -297,6 +353,10 @@ export function readRegistry(env = process.env) {
   }
 }
 
+/**
+ * Persists the coordination registry. Failures are logged, never thrown: the
+ * registry is advisory and must not break a session.
+ */
 export function writeRegistry(registry, env = process.env) {
   try {
     mkdirSync(dirname(registryPath(env)), { recursive: true });
@@ -310,6 +370,13 @@ export function writeRegistry(registry, env = process.env) {
 // Read the bits of git state an agent would otherwise shell out for: current
 // branch/commit and whether the index is locked (a commit in progress).
 // No subprocess: .git is just files, and worktrees point at it via `.git`.
+/**
+ * Reads branch, short commit and `index.lock` directly from `.git` — no
+ * subprocess. Works for worktrees via the `gitdir:` pointer.
+ *
+ * @param directory - A repository root (or worktree root).
+ * @returns `{ branch, sha, locked }`, or `undefined` when not a repository.
+ */
 export function repoState(directory) {
   if (!directory) return undefined;
   try {
@@ -360,6 +427,15 @@ export function repoState(directory) {
 // asking peers to report it. Bounded, path-scoped and cached: zero LLM tokens,
 // and it never inspects the whole tree.
 const dirtyCache = new Map();
+/**
+ * Path-scoped index cleanliness. This is the one fact that genuinely requires
+ * git, so it is computed here rather than asked of peers.
+ *
+ * @param directory - Repository root.
+ * @param paths - Paths to scope `git status` to; empty means the whole tree.
+ * @param ttlMs - Cache lifetime; results are reused within it.
+ * @returns `{ staged, unstaged, files }`, or `undefined` on failure.
+ */
 export function dirtyState(directory, paths = [], ttlMs = 10_000) {
   if (!directory) return undefined;
   const key = `${directory}|${paths.join(",")}`;
@@ -392,6 +468,16 @@ export function dirtyState(directory, paths = [], ttlMs = 10_000) {
   return value;
 }
 
+/**
+ * Builds the coordination surface for one plugin instance.
+ *
+ * The returned tools are deliberately few and positional-cheap: listing,
+ * direct messaging, room posting, and registration. Everything they return is
+ * sized for a model to read once, not for a human.
+ *
+ * @param ctx - Plugin context (sessions, prompts, location).
+ * @param options - Test seams: env, clock, foreign-agent detector, activity window.
+ */
 export function createPeers(ctx, options = {}) {
   const env = options.env ?? process.env;
   const now = options.now ?? (() => Date.now());

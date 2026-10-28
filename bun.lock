@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "@mekwall/opencode-peers",
+      "devDependencies": {
+        "gpt-tokenizer": "^4.1.0",
+      },
+    },
+  },
+  "packages": {
+    "gpt-tokenizer": ["gpt-tokenizer@4.1.0", "", {}, "sha512-r7Op7S3iPy9vGpcfHmfIlLN/+/mNL2kXDy3N/ppp2xC2pm57pyYTt3fqsncMZ/yfIT+d3mTGhd7H6fcF/qiqWg=="],
+  }
+}

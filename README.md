@@ -95,6 +95,28 @@ DMs (`peers_send`) still deliver as a queued user turn to one session, because t
 
 `peers_list` answers "who is working, where, with what" in one call: model and agent come from the session, directory is `~`-relative, subagents are folded into their root. No shell, no `/proc`, no API calls from the agent.
 
+## APCL
+
+`apcl.js` is a fixed, positional language for agent-to-agent coordination:
+
+```
+~ C ab12 f2k9 1a2b3c4     claim   agent  file  revision
+~ R ab12 f2k9             release
+~ X ab12 f2k9             conflict
+~ Y cd34 f2k9             yield
+~ Q ef56 f2k9             question
+~ A ab12 f2k9             answer
+~ B ab12 f2k9             broadcast
+~ N ab12 f2k9             note
+~ M ab12 free text here   natural-language fallback
+```
+
+Ids are deterministic hashes, not negotiated: agent = 4 base36 chars of session id, file = `f` + 4 chars of path, revision = 7-char sha. Parsing is strict and fails closed; `humanize()` renders a diagnostic form for logs and humans, never for the wire.
+
+Static token counts (o200k tokenizer, six representative messages): **APCL 65, compact Markdown 93, concise English 96, minified JSON 144** — APCL is 1.4× cheaper than Markdown/English and 2.2× cheaper than JSON.
+
+Live results are not yet trustworthy: `opencode run --format json` truncates its event stream when stdout is a pipe, so token telemetry is only intermittently captured, and n=2 per encoding is far too small. The harness (`bench/live.mjs`) is committed for a proper run. One signal worth following up: compact Markdown failed both tasks in every trial while APCL, JSON and English passed — possibly the leading `- ` reading as a list item rather than a protocol message.
+
 ## Protocol vs serialization
 
 The coordination protocol is internal and typed — integer ops, aliases, subject, payload (`protocol.js`). How it is rendered to a model is a separate decision:
